@@ -22,7 +22,10 @@ export default async function CodePage({ params, searchParams }: { params: Promi
   }
 
   // Validação silenciosa via API (sem expor dados sensíveis)
-  const res = await fetch(`${process.env.SITE_URL || "http://localhost:3000"}/api/codes/validate`, {
+  const proto = hdrs.get("x-forwarded-proto") || "https";
+  const host = hdrs.get("x-forwarded-host") || hdrs.get("host") || "localhost:3000";
+  const origin = `${proto}://${host}`;
+  const res = await fetch(`${origin}/api/codes/validate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code, utm: sp, referer }),

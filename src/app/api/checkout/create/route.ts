@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { getSupabaseServer } from "@/lib/supabaseServer";
 import { createPreference, MercadoPagoPreference } from "@/lib/mercadopago";
 
@@ -127,6 +128,11 @@ export async function POST(req: Request) {
   const area_code = phoneDigits.length >= 10 ? phoneDigits.substring(0, 2) : '11';
   const phone_number = phoneDigits.length >= 10 ? phoneDigits.substring(2) : phoneDigits;
   
+  const hdrs = headers();
+  const proto = hdrs.get("x-forwarded-proto") || "https";
+  const host = hdrs.get("x-forwarded-host") || hdrs.get("host") || "localhost:3000";
+  const origin = `${proto}://${host}`;
+
   const preferenceData: MercadoPagoPreference = {
     items: [
       {
@@ -162,9 +168,9 @@ export async function POST(req: Request) {
     },
     external_reference: external_reference,
     back_urls: {
-      success: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/checkout/success`,
-      failure: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/checkout/failure`,
-      pending: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/checkout/pending`
+      success: `${origin}/checkout/success`,
+      failure: `${origin}/checkout/failure`,
+      pending: `${origin}/checkout/pending`
     },
     auto_return: 'approved' as const,
     statement_descriptor: 'Cafe Canastra',
