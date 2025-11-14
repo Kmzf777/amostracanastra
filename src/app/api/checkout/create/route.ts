@@ -128,7 +128,7 @@ export async function POST(req: Request) {
   const area_code = phoneDigits.length >= 10 ? phoneDigits.substring(0, 2) : '11';
   const phone_number = phoneDigits.length >= 10 ? phoneDigits.substring(2) : phoneDigits;
   
-  const hdrs = headers();
+  const hdrs = await headers();
   const proto = hdrs.get("x-forwarded-proto") || "https";
   const host = hdrs.get("x-forwarded-host") || hdrs.get("host") || "localhost:3000";
   const origin = `${proto}://${host}`;
