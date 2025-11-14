@@ -38,8 +38,6 @@ export default async function CodePage({ params, searchParams }: { params: Promi
     );
   }
 
-  const data = await res.json();
-
   return (
     <main className="container">
       <h1>Bem-vindo!</h1>

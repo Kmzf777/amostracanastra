@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import { LogOut, TrendingUp, DollarSign, Package, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -15,6 +15,7 @@ interface ProductData {
   name: string;
   value: number;
   color: string;
+  [key: string]: string | number; // Add index signature for ChartDataInput compatibility
 }
 
 const mockSalesData: SalesData[] = [
@@ -42,15 +43,15 @@ const mockProductData: ProductData[] = [
 
 export default function AdminDashboardPage() {
   const [selectedPeriod, setSelectedPeriod] = useState("30 dias");
-  const [totalSales, setTotalSales] = useState(1247);
-  const [totalRevenue, setTotalRevenue] = useState(49880);
+  const [totalSales] = useState(1247);
+  const [totalRevenue] = useState(49880);
   const router = useRouter();
 
   const handleLogout = () => {
     router.push("/admin");
   };
 
-  const currentData = mockSalesData.find(data => data.period === selectedPeriod) || mockSalesData[3];
+  // const currentData = mockSalesData.find(data => data.period === selectedPeriod) || mockSalesData[3];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -214,7 +215,7 @@ export default function AdminDashboardPage() {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={mockProductData as any}
+                  data={mockProductData}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}

@@ -4,8 +4,9 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { XCircle, ArrowRight, RotateCcw } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 
-export default function CheckoutFailurePage() {
+function CheckoutFailureContent() {
   const searchParams = useSearchParams();
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [externalReference, setExternalReference] = useState<string | null>(null);
@@ -75,5 +76,13 @@ export default function CheckoutFailurePage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function CheckoutFailurePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center">Carregando...</div>}>
+      <CheckoutFailureContent />
+    </Suspense>
   );
 }

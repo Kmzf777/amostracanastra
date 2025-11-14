@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
   // Handle both 6-digit and 9-character formats like in code validation
   let searchCode = code;
-  if (code.length === 6 && /^\d{6}$/.test(code)) {
+  if (code && code.length === 6 && /^\d{6}$/.test(code)) {
     // If user entered 6 digits, pad with spaces to match database format
     searchCode = code + '   ';
   }

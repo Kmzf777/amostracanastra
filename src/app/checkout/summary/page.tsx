@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Package, User, MapPin, CreditCard, ArrowRight, CheckCircle } from "lucide-react";
+import { Package, User, MapPin, ArrowRight, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 
 interface OrderData {
   customer: {
@@ -25,7 +26,7 @@ interface OrderData {
   code: string;
 }
 
-export default function OrderSummaryPage() {
+function CheckoutSummaryContent() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [orderData, setOrderData] = useState<OrderData | null>(null);
@@ -46,7 +47,7 @@ export default function OrderSummaryPage() {
       const customer = JSON.parse(decodeURIComponent(customerData));
       const shipment = JSON.parse(decodeURIComponent(shipmentData));
       setOrderData({ code, customer, shipment });
-    } catch (e) {
+    } catch {
       setError("Erro ao carregar dados do pedido");
     }
   }, [searchParams]);
@@ -82,7 +83,7 @@ export default function OrderSummaryPage() {
       } else {
         throw new Error("Erro ao criar pagamento");
       }
-    } catch (error) {
+    } catch {
       setError("Erro ao processar pagamento. Tente novamente.");
       setLoading(false);
     }
@@ -269,5 +270,13 @@ export default function OrderSummaryPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function OrderSummaryPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center">Carregando...</div>}>
+      <CheckoutSummaryContent />
+    </Suspense>
   );
 }

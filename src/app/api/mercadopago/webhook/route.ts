@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getSupabaseServer } from "@/lib/supabaseServer";
 
 export async function POST(req: Request) {
   try {
@@ -12,8 +11,6 @@ export async function POST(req: Request) {
       // Here you would typically make a call to Mercado Pago API
       // to get the payment details, but for now we'll just update
       // the order status based on the notification
-      
-      const supabase = getSupabaseServer();
       
       // Update order status based on payment status
       // This is a simplified version - in production you'd want to

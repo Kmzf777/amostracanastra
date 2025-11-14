@@ -5,18 +5,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import PinInput6Mobile from "@/components/ui/pin-input-6-mobile";
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
+import { Suspense } from "react";
 
-export default function HomePageClient() {
+function HomePageContent() {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const router = useRouter();
   const sp = useSearchParams();
 
   useEffect(() => {
-    setMounted(true);
     fetch("/api/setup/seed").catch(() => {});
   }, []);
 
@@ -160,5 +159,13 @@ export default function HomePageClient() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function HomePageClient() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center">Carregando...</div>}>
+      <HomePageContent />
+    </Suspense>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { VerticalCutReveal, VerticalCutRevealRef } from "@/components/ui/vertical-cut-reveal";
 import { ArrowRight, ArrowLeft } from "lucide-react";
+import { Suspense } from "react";
 
 function onlyDigits(v: string) { return v.replace(/\D/g, ""); }
 function isValidCPF(cpf: string) {
@@ -164,8 +165,9 @@ const questions: Question[] = [
   }
 ];
 
-export default function CheckoutPage() {
+function CheckoutPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const code = (searchParams.get("code") || "").trim();
   const [loading, setLoading] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -396,5 +398,13 @@ export default function CheckoutPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center">Carregando...</div>}>
+      <CheckoutPageContent />
+    </Suspense>
   );
 }
