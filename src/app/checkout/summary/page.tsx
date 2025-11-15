@@ -85,6 +85,7 @@ function CheckoutSummaryContent() {
                 : code === 'mp_invalid_payload'
                   ? 'Dados do pagamento inválidos. Verifique suas informações.'
                   : 'Erro ao criar pedido';
+        console.error('checkout_create_error_client', { errorCode: code, status: res.status });
         throw new Error(message);
       }
 

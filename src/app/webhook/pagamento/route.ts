@@ -39,6 +39,7 @@ export async function POST(req: Request) {
     const paymentId = body?.data?.id || body?.data_id || body?.id;
 
     if (type && String(type).includes("payment") && paymentId) {
+      console.log('webhook_received', { type, paymentId });
       const payment = await fetchPaymentDetails(String(paymentId));
       const status = payment?.status as string;
       const externalRef = String(payment?.external_reference || "");
@@ -83,11 +84,13 @@ export async function POST(req: Request) {
         .update({ status: newStatus })
         .eq("id", order.id);
 
+      console.log('webhook_update', { external_reference: externalRef, order_id: order.id, newStatus });
       return NextResponse.json({ message: "ok", paymentId, status, external_reference: externalRef }, { status: 200 });
     }
 
     return NextResponse.json({ message: "ignored" }, { status: 200 });
   } catch (error) {
+    console.error('webhook_failure', { message: error instanceof Error ? error.message : 'unknown_error' });
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }

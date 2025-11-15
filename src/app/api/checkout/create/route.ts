@@ -213,11 +213,14 @@ export async function POST(req: Request) {
   try {
     const token = process.env.MERCADO_PAGO_ACCESS_TOKEN || '';
     if (!token) {
+      console.error('checkout_create_error', { code: 'mp_missing_token', external_reference, order_id: order.id });
       return NextResponse.json({ error: 'mp_missing_token' }, { status: 500 });
     }
+    console.log('checkout_create_start', { external_reference, order_id: order.id, affiliate_id: affiliate.id });
     const preference = await createPreference(preferenceData);
     const useSandbox = token.startsWith('TEST-');
     const initPoint = useSandbox ? (preference.sandbox_init_point || preference.init_point) : (preference.init_point || preference.sandbox_init_point);
+    console.log('checkout_create_success', { preference_id: preference.id, external_reference, order_id: order.id, sandbox: useSandbox });
     return NextResponse.json({
       init_point: initPoint,
       preference_id: preference.id,
@@ -229,6 +232,7 @@ export async function POST(req: Request) {
     const e = error as MPError;
     const code = e?.code || 'payment_error';
     const status = typeof e?.status === 'number' ? e.status : (/mp_invalid_token/.test(String(code)) ? 401 : 500);
+    console.error('checkout_create_failure', { code, status, message: e?.message, external_reference, order_id: order.id });
     return NextResponse.json({ error: code }, { status });
   }
 }
