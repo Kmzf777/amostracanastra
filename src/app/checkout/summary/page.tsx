@@ -72,19 +72,26 @@ function CheckoutSummaryContent() {
       });
 
       if (!res.ok) {
-        throw new Error("Erro ao criar pedido");
+        const data = await res.json().catch(() => null);
+        const code = data?.error;
+        const message = code === 'invalid_cpf'
+          ? 'CPF inválido. Verifique seus dados.'
+          : code === 'invalid_code'
+            ? 'Código inválido. Verifique seus 6 dígitos.'
+            : 'Erro ao criar pedido';
+        throw new Error(message);
       }
 
       const result = await res.json();
       
       if (result.init_point) {
-        // Redirect to Mercado Pago checkout
         window.location.href = result.init_point;
       } else {
         throw new Error("Erro ao criar pagamento");
       }
-    } catch {
-      setError("Erro ao processar pagamento. Tente novamente.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro ao processar pagamento. Tente novamente.";
+      setError(msg);
       setLoading(false);
     }
   };

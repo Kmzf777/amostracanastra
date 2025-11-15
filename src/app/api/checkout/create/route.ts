@@ -67,6 +67,23 @@ export async function POST(req: Request) {
   }
 
   const supabase = getSupabaseServer();
+  // Generate unique 6-digit order code (distinct from affiliates codes)
+  async function generateUniqueOrderCode() {
+    function randomSix() {
+      return Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    }
+    while (true) {
+      const candidate = randomSix();
+      const padded = candidate + '   ';
+      const { data: exists } = await supabase
+        .from('affiliates')
+        .select('id')
+        .eq('code', padded)
+        .limit(1)
+        .maybeSingle();
+      if (!exists) return candidate;
+    }
+  }
   const { data: affiliate, error: affErr } = await supabase
     .from("affiliates").select("id, status, code").eq("code", searchCode).limit(1).maybeSingle();
   if (affErr) return NextResponse.json({ error: "db_error" }, { status: 500 });
@@ -76,6 +93,9 @@ export async function POST(req: Request) {
   const subtotal = 0;
   const total_amount = shipping_amount;
 
+  // Create or update customer and persist new order_code
+  const order_code = await generateUniqueOrderCode();
+
   const { data: cust, error: custErr } = await supabase
     .from("customers")
     .upsert({
@@ -83,6 +103,7 @@ export async function POST(req: Request) {
       email: customer.email,
       phone: customer.phone,
       cpf: customer.cpf,
+      order_code: order_code + '   ',
     }, { onConflict: "email" })
     .select("id")
     .maybeSingle();
@@ -116,12 +137,11 @@ export async function POST(req: Request) {
       city: shipment.city,
       state: shipment.state,
       postal_code: shipment.postal_code,
-      status: "pending",
     });
   if (shipErr) return NextResponse.json({ error: "db_error" }, { status: 500 });
 
   // Create Mercado Pago preference
-  const external_reference = order.id;
+  const external_reference = order_code;
   
   // Extract area code from phone (assuming Brazilian format)
   const phoneDigits = onlyDigits(customer.phone);
@@ -129,15 +149,17 @@ export async function POST(req: Request) {
   const phone_number = phoneDigits.length >= 10 ? phoneDigits.substring(2) : phoneDigits;
   
   const hdrs = await headers();
-  const proto = hdrs.get("x-forwarded-proto") || "https";
+  const proto = hdrs.get("x-forwarded-proto") || "http";
   const host = hdrs.get("x-forwarded-host") || hdrs.get("host") || "localhost:3000";
   const origin = `${proto}://${host}`;
+  const siteUrl = process.env.SITE_URL || origin;
 
   const preferenceData: MercadoPagoPreference = {
     items: [
       {
         id: 'frete-amostras-cafe',
-        title: 'Frete Amostras Grátis Café Canastra',
+        title: 'Frete Amostra Grátis Café Canastra',
+        description: 'Pagamento referente ao frete para envio da amostra grátis do Café Canastra.',
         quantity: 1,
         unit_price: shipping_amount,
         currency_id: 'BRL'
@@ -168,11 +190,12 @@ export async function POST(req: Request) {
     },
     external_reference: external_reference,
     back_urls: {
-      success: `${origin}/checkout/success`,
-      failure: `${origin}/checkout/failure`,
-      pending: `${origin}/checkout/pending`
+      success: `https://amostra.cafecanastra.com/obrigado`,
+      failure: `https://amostra.cafecanastra.com/erro-pagamento`,
+      pending: `https://amostra.cafecanastra.com/pendente`
     },
-    auto_return: 'approved' as const,
+    auto_return: 'approved',
+    notification_url: `${siteUrl}/webhook/pagamento`,
     statement_descriptor: 'Cafe Canastra',
     payment_methods: {
       excluded_payment_types: [

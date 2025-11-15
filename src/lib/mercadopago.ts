@@ -1,17 +1,18 @@
-import MercadoPago, { Preference } from 'mercadopago';
+import { MercadoPagoConfig, Preference } from 'mercadopago';
 
-// Initialize Mercado Pago with your credentials
-export const mercadopago = new MercadoPago({
-  accessToken: 'APP_USR-504258963331142-090413-1e563886f87267ab3fd1511859ec2755-2664947316',
+const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || "";
+
+export const mercadopago = new MercadoPagoConfig({
+  accessToken,
   options: {
     timeout: 5000,
-    idempotencyKey: 'unique-key',
   }
 });
 
 export interface MercadoPagoItem {
   id: string;
   title: string;
+  description?: string;
   quantity: number;
   unit_price: number;
   currency_id: 'BRL';
@@ -48,7 +49,7 @@ export interface MercadoPagoPreference {
     failure: string;
     pending: string;
   };
-  auto_return: 'approved';
+  auto_return?: 'approved';
   notification_url?: string;
   statement_descriptor: string;
   payment_methods: {
@@ -59,6 +60,9 @@ export interface MercadoPagoPreference {
 
 export async function createPreference(preferenceData: MercadoPagoPreference) {
   try {
+    if (!accessToken) {
+      throw new Error('Missing MERCADO_PAGO_ACCESS_TOKEN');
+    }
     const preference = new Preference(mercadopago);
     const response = await preference.create({ body: preferenceData });
     return response;
