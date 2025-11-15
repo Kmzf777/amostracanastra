@@ -78,7 +78,13 @@ function CheckoutSummaryContent() {
           ? 'CPF inválido. Verifique seus dados.'
           : code === 'invalid_code'
             ? 'Código inválido. Verifique seus 6 dígitos.'
-            : 'Erro ao criar pedido';
+            : code === 'mp_missing_token'
+              ? 'Configuração de pagamento ausente. Tente novamente mais tarde.'
+              : code === 'mp_invalid_token'
+                ? 'Pagamento indisponível: credencial inválida. Tente novamente mais tarde.'
+                : code === 'mp_invalid_payload'
+                  ? 'Dados do pagamento inválidos. Verifique suas informações.'
+                  : 'Erro ao criar pedido';
         throw new Error(message);
       }
 

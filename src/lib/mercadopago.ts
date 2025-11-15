@@ -73,7 +73,10 @@ export async function createPreference(preferenceData: MercadoPagoPreference) {
     const response = await preference.create({ body: preferenceData });
     return response;
   } catch (error) {
-    console.error('Error creating Mercado Pago preference:', error);
-    throw error;
+    const msg = error instanceof Error ? error.message : 'unknown_error';
+    const e: any = error as any;
+    const status = typeof e?.status === 'number' ? e.status : (/401/.test(String(msg)) ? 401 : undefined);
+    const code = /401|unauthorized/i.test(String(msg)) ? 'mp_invalid_token' : 'payment_error';
+    throw Object.assign(new Error(msg), { status, code });
   }
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
+ 
 import { getSupabaseServer } from "@/lib/supabaseServer";
 import { createPreference, MercadoPagoPreference } from "@/lib/mercadopago";
 
@@ -37,7 +37,7 @@ function isValidCPF(cpf: string) {
   return d1 === parseInt(s[9], 10) && d2 === parseInt(s[10], 10);
 }
 
-function shippingForState(state: string) {
+function shippingForState(_state: string) {
   // Placeholder até definição: tarifa plana
   return 19.9;
 }
@@ -150,11 +150,7 @@ export async function POST(req: Request) {
   const area_code = phoneDigits.length >= 10 ? phoneDigits.substring(0, 2) : '11';
   const phone_number = phoneDigits.length >= 10 ? phoneDigits.substring(2) : phoneDigits;
   
-  const hdrs = await headers();
-  const proto = hdrs.get("x-forwarded-proto") || "http";
-  const host = hdrs.get("x-forwarded-host") || hdrs.get("host") || "localhost:3000";
-  const origin = `${proto}://${host}`;
-  const siteUrl = process.env.SITE_URL || origin;
+  
 
   const preferenceData: MercadoPagoPreference = {
     items: [
@@ -203,7 +199,7 @@ export async function POST(req: Request) {
       pending: `https://amostra.cafecanastra.com/pendente`
     },
     auto_return: 'approved',
-    notification_url: `${siteUrl}/webhook/pagamento`,
+    notification_url: `https://amostra.cafecanastra.com/webhook/pagamento`,
     statement_descriptor: 'Cafe Canastra',
     payment_methods: {
       excluded_payment_types: [
@@ -215,17 +211,25 @@ export async function POST(req: Request) {
   };
 
   try {
+    const token = process.env.MERCADO_PAGO_ACCESS_TOKEN || '';
+    if (!token) {
+      return NextResponse.json({ error: 'mp_missing_token' }, { status: 500 });
+    }
     const preference = await createPreference(preferenceData);
-    
+    const useSandbox = token.startsWith('TEST-');
+    const initPoint = useSandbox ? (preference.sandbox_init_point || preference.init_point) : (preference.init_point || preference.sandbox_init_point);
     return NextResponse.json({
-      init_point: preference.init_point,
+      init_point: initPoint,
       preference_id: preference.id,
       external_reference,
       order_id: order.id,
     }, { status: 200 });
-  } catch (error) {
-    console.error('Error creating Mercado Pago preference:', error);
-    return NextResponse.json({ error: "payment_error" }, { status: 500 });
+  } catch (error: unknown) {
+    type MPError = { code?: string; status?: number; message?: string };
+    const e = error as MPError;
+    const code = e?.code || 'payment_error';
+    const status = typeof e?.status === 'number' ? e.status : (/mp_invalid_token/.test(String(code)) ? 401 : 500);
+    return NextResponse.json({ error: code }, { status });
   }
 }
 export const runtime = 'nodejs';
