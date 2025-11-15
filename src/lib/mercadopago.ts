@@ -22,6 +22,7 @@ export interface MercadoPagoPreference {
   items: MercadoPagoItem[];
   payer: {
     name: string;
+    surname?: string;
     email: string;
     identification: {
       type: 'CPF';
@@ -31,15 +32,20 @@ export interface MercadoPagoPreference {
       area_code: string;
       number: string;
     };
+    address?: {
+      zip_code?: string;
+      street_name?: string;
+      street_number?: string;
+    };
   };
   shipments: {
     receiver_address: {
       zip_code: string;
       street_name: string;
       street_number: string;
-      neighborhood: string;
-      city: string;
-      federal_unit: string;
+      city_name: string;
+      state_name: string;
+      country_name?: string;
       complement?: string;
     };
   };

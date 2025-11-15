@@ -142,6 +142,8 @@ export async function POST(req: Request) {
 
   // Create Mercado Pago preference
   const external_reference = order_code;
+  const [firstName, ...restNames] = customer.full_name.trim().split(/\s+/);
+  const surname = restNames.join(' ') || undefined;
   
   // Extract area code from phone (assuming Brazilian format)
   const phoneDigits = onlyDigits(customer.phone);
@@ -166,7 +168,8 @@ export async function POST(req: Request) {
       }
     ],
     payer: {
-      name: customer.full_name,
+      name: firstName,
+      surname,
       email: customer.email,
       identification: {
         type: 'CPF' as const,
@@ -175,6 +178,11 @@ export async function POST(req: Request) {
       phone: {
         area_code: area_code,
         number: phone_number
+      },
+      address: {
+        zip_code: onlyDigits(shipment.postal_code),
+        street_name: shipment.address_line1,
+        street_number: shipment.number,
       }
     },
     shipments: {
@@ -182,9 +190,9 @@ export async function POST(req: Request) {
         zip_code: onlyDigits(shipment.postal_code),
         street_name: shipment.address_line1,
         street_number: shipment.number,
-        neighborhood: shipment.district,
-        city: shipment.city,
-        federal_unit: shipment.state,
+        city_name: shipment.city,
+        state_name: shipment.state,
+        country_name: 'Brazil',
         complement: shipment.address_line2 || undefined
       }
     },
@@ -220,3 +228,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "payment_error" }, { status: 500 });
   }
 }
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
