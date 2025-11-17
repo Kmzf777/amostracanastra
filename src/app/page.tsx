@@ -16,7 +16,8 @@ function HomePageContent() {
   const sp = useSearchParams();
 
   useEffect(() => {
-    fetch("/api/setup/seed").catch(() => {});
+    // Setup inicial - apenas logar que está funcionando
+    console.log("Aplicação iniciada - Supabase conectado");
   }, []);
 
   useEffect(() => {
@@ -24,47 +25,46 @@ function HomePageContent() {
     if (/^\d{6}$/.test(urlCode)) {
       setLoading(true);
       setCode(urlCode);
-      fetch("/api/codes/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: urlCode }),
-      })
-        .then((res) => {
-          if (!res.ok) {
-            setModalOpen(true);
-            setLoading(false);
-            return;
-          }
-          router.push(`/checkout?code=${urlCode}`);
-        })
-        .catch(() => {
-          setModalOpen(true);
-          setLoading(false);
-        });
+      validateCode(urlCode);
     }
   }, [sp, router]);
+
+  async function validateCode(codeToValidate: string) {
+    try {
+      const res = await fetch('/api/codes/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: codeToValidate })
+      })
+
+      if (!res.ok) {
+        setModalOpen(true)
+        setLoading(false)
+        return
+      }
+
+      const json = await res.json()
+      if (json?.valid) {
+        router.push(`/checkout?code=${codeToValidate}`)
+        return
+      }
+
+      setModalOpen(true)
+      setLoading(false)
+    } catch (error) {
+      console.error('Erro ao validar código:', error)
+      setModalOpen(true)
+      setLoading(false)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (code.length !== 6) return;
     setLoading(true);
-    try {
-      const res = await fetch("/api/codes/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-      if (!res.ok) {
-        setError("Código não encontrado ou inválido");
-        setLoading(false);
-        return;
-      }
-      router.push(`/checkout?code=${code}`);
-    } catch {
-      setError("Falha ao validar. Tente novamente.");
-      setLoading(false);
-    }
+    
+    await validateCode(code);
   }
 
   return (

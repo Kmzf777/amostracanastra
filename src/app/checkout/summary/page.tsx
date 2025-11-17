@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Package, User, MapPin, ArrowRight, CheckCircle } from "lucide-react";
+import { Package, User, MapPin, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -14,7 +14,6 @@ interface OrderData {
     cpf: string;
   };
   shipment: {
-    receiver_name: string;
     address_line1: string;
     address_line2?: string;
     number: string;
@@ -28,7 +27,6 @@ interface OrderData {
 
 function CheckoutSummaryContent() {
   const searchParams = useSearchParams();
-  const [loading, setLoading] = useState(false);
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,57 +49,6 @@ function CheckoutSummaryContent() {
       setError("Erro ao carregar dados do pedido");
     }
   }, [searchParams]);
-
-  const handleProceedToPayment = async () => {
-    if (!orderData) return;
-    
-    setLoading(true);
-    setError(null);
-
-    try {
-      const payload = {
-        code: orderData.code,
-        customer: orderData.customer,
-        shipment: orderData.shipment,
-      };
-
-      const res = await fetch("/api/checkout/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        const code = data?.error;
-        const message = code === 'invalid_cpf'
-          ? 'CPF inválido. Verifique seus dados.'
-          : code === 'invalid_code'
-            ? 'Código inválido. Verifique seus 6 dígitos.'
-            : code === 'mp_missing_token'
-              ? 'Configuração de pagamento ausente. Tente novamente mais tarde.'
-              : code === 'mp_invalid_token'
-                ? 'Pagamento indisponível: credencial inválida. Tente novamente mais tarde.'
-                : code === 'mp_invalid_payload'
-                  ? 'Dados do pagamento inválidos. Verifique suas informações.'
-                  : 'Erro ao criar pedido';
-        console.error('checkout_create_error_client', { errorCode: code, status: res.status });
-        throw new Error(message);
-      }
-
-      const result = await res.json();
-      
-      if (result.init_point) {
-        window.location.href = result.init_point;
-      } else {
-        throw new Error("Erro ao criar pagamento");
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Erro ao processar pagamento. Tente novamente.";
-      setError(msg);
-      setLoading(false);
-    }
-  };
 
   const formatPhone = (phone: string) => {
     const digits = phone.replace(/\D/g, "");
@@ -164,8 +111,8 @@ function CheckoutSummaryContent() {
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Resumo do Pedido</h1>
-          <p className="text-gray-600">Revise suas informações antes de prosseguir</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Pedido Confirmado!</h1>
+          <p className="text-gray-600">Suas amostras grátis foram reservadas com sucesso</p>
         </div>
 
         <div className="space-y-6">
@@ -178,12 +125,12 @@ function CheckoutSummaryContent() {
             <div className="bg-white rounded-lg p-4 border border-gray-200">
               <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="font-medium text-gray-900">Frete Amostras Grátis Café Canastra</h3>
-                  <p className="text-sm text-gray-600">3 amostras de café premium</p>
+                  <h3 className="font-medium text-gray-900">3 Amostras Grátis Café Canastra</h3>
+                  <p className="text-sm text-gray-600">Café premium selecionado</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-gray-900">R$ 19,90</p>
-                  <p className="text-sm text-gray-600">Envio para todo Brasil</p>
+                  <p className="text-lg font-bold text-green-600">GRÁTIS</p>
+                  <p className="text-sm text-gray-600">Frete grátis</p>
                 </div>
               </div>
             </div>
@@ -223,10 +170,6 @@ function CheckoutSummaryContent() {
             </div>
             <div className="bg-white rounded-lg p-4 border border-gray-200 space-y-2">
               <div className="flex justify-between">
-                <span className="text-gray-600">Destinatário:</span>
-                <span className="font-medium text-gray-900">{orderData.shipment.receiver_name}</span>
-              </div>
-              <div className="flex justify-between">
                 <span className="text-gray-600">Endereço:</span>
                 <span className="font-medium text-gray-900">
                   {orderData.shipment.address_line1}, {orderData.shipment.number}
@@ -248,38 +191,25 @@ function CheckoutSummaryContent() {
             </div>
           </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-600 text-sm text-center">{error}</p>
+          {/* Order Code */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-blue-900 mb-2">Código do Pedido</h3>
+              <p className="text-2xl font-bold text-blue-800 font-mono">{orderData.code}</p>
+              <p className="text-blue-700 text-sm mt-2">
+                Guarde este código para acompanhar seu pedido
+              </p>
             </div>
-          )}
+          </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-4">
+          {/* Action Button */}
+          <div className="flex justify-center">
             <Link
               href="/"
-              className="flex-1 inline-flex items-center justify-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold px-6 py-3 rounded-lg shadow transition-all duration-200"
+              className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
             >
-              Cancelar
+              Voltar ao Início
             </Link>
-            <button
-              onClick={handleProceedToPayment}
-              disabled={loading}
-              className="flex-1 inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold px-6 py-3 rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
-            >
-              {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Processando...
-                </>
-              ) : (
-                <>
-                  Prosseguir Pagamento
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
-            </button>
           </div>
         </div>
       </div>

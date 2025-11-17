@@ -1,9 +1,8 @@
 import { headers } from "next/headers";
 
 function isValidCode(code: string) {
-  // Accept both 6-digit codes and 9-character codes (6 digits + 3 spaces)
-  const trimmedCode = code.trim();
-  return /^\d{6}$/.test(trimmedCode) || (code.length === 9 && /^\d{6}\s{3}$/.test(code));
+  // Accept both 6-digit codes and codes with trailing spaces
+  return /^\d{6}\s*$/.test(code);
 }
 
 export default async function CodePage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {

@@ -1,0 +1,275 @@
+"use client";
+
+import { useSearchParams, useRouter } from "next/navigation";
+import Image from "next/image";
+import { ArrowLeft, ArrowRight, User, Mail, Phone, MapPin } from "lucide-react";
+import { useState, useEffect } from "react";
+
+interface CustomerData {
+  full_name: string;
+  email: string;
+  phone: string;
+  cpf: string;
+  address_line1: string;
+  address_line2: string;
+  number: string;
+  district: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  complemento?: string; // Adicionar complemento como opcional
+}
+
+// Função auxiliar para extrair o link de pagamento de diferentes formatos de resposta
+function extractPaymentLink(response: any): string | null {
+  console.log('Extraindo link de:', response);
+  
+  // Formato 1: Array com objeto [{ link_de_pagamento: "url" }]
+  if (Array.isArray(response) && response.length > 0) {
+    if (response[0].link_de_pagamento) {
+      return response[0].link_de_pagamento;
+    }
+  }
+  
+  // Formato 2: Objeto direto { link_de_pagamento: "url" }
+  if (response && response.link_de_pagamento) {
+    return response.link_de_pagamento;
+  }
+  
+  // Formato 3: Objeto encapsulado { data: { link_de_pagamento: "url" } }
+  if (response && response.data && response.data.link_de_pagamento) {
+    return response.data.link_de_pagamento;
+  }
+  
+  // Formato 4: String direta (caso venha só a URL)
+  if (typeof response === 'string' && response.startsWith('http')) {
+    return response;
+  }
+  
+  // Tentar encontrar link em outras propriedades comuns
+  const possibleKeys = ['link', 'url', 'payment_link', 'checkout_url', 'link_de_pagamento'];
+  for (const key of possibleKeys) {
+    if (response && response[key]) {
+      return response[key];
+    }
+  }
+  
+  console.log('Nenhum link encontrado nos formatos conhecidos');
+  return null;
+}
+
+export default function OrderSummary() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [customerData, setCustomerData] = useState<CustomerData | null>(null);
+  const [paymentClicked, setPaymentClicked] = useState(false);
+  const code = searchParams.get("code") || "";
+
+  useEffect(() => {
+    // Get customer data from localStorage (saved during checkout)
+    const savedData = localStorage.getItem('checkout_customer_data');
+    if (savedData) {
+      setCustomerData(JSON.parse(savedData));
+    } else {
+      // If no data found, redirect back to checkout
+      router.push(`/checkout?code=${code}`);
+    }
+  }, [code, router]);
+
+  const handleBackToEdit = () => {
+    router.push(`/checkout?code=${code}`);
+  };
+
+  const handlePayment = async () => {
+    if (!customerData) return;
+    
+    setLoading(true);
+    setPaymentClicked(true);
+    
+    try {
+      console.log('Enviando dados para webhook...');
+      
+      const response = await fetch('https://webhook.canastrainteligencia.com/webhook/linkpagamentoamostra', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code,
+          customer: {
+            ...customerData,
+            complemento: customerData.address_line2 || '' // Enviar complemento como parâmetro separado
+          },
+          product: {
+            name: 'Frete Amostra Grátis Café Especial',
+            price: 19.90,
+            quantity: 1
+          }
+        }),
+      });
+
+      console.log('Resposta HTTP recebida:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Erro na resposta HTTP:', errorText);
+        throw new Error(`Erro ao processar pagamento: ${response.status} ${response.statusText}`);
+      }
+
+      console.log('Aguardando JSON da resposta...');
+      const result = await response.json();
+      
+      // Debug: Log da resposta completa
+      console.log('Resposta do webhook:', result);
+      console.log('Tipo da resposta:', typeof result);
+      console.log('Conteúdo da resposta:', JSON.stringify(result, null, 2));
+      
+      // Extrair link de pagamento usando a função auxiliar
+      const paymentLink = extractPaymentLink(result);
+      
+      if (paymentLink) {
+        console.log('Link de pagamento encontrado:', paymentLink);
+        window.open(paymentLink, '_blank');
+      } else {
+        console.error('Formato da resposta não reconhecido:', result);
+        throw new Error(`Link de pagamento não recebido. Formato: ${JSON.stringify(result)}`);
+      }
+      
+    } catch (error) {
+      console.error('Erro completo no webhook:', error);
+      alert(`Erro ao processar pagamento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      setPaymentClicked(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!customerData) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando dados do pedido...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-white px-4 py-8">
+      <div className="max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <button
+            onClick={handleBackToEdit}
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Voltar para editar
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">Resumo do Pedido</h1>
+        </div>
+
+        {/* Product Section */}
+        <div className="bg-gray-50 rounded-xl p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Produto</h2>
+          <div className="flex items-center gap-4">
+            <div className="relative w-20 h-20 flex-shrink-0">
+              <Image
+                src="/amostra.png"
+                alt="Amostras de Café"
+                width={80}
+                height={50}
+                className="rounded-lg object-cover"
+                priority
+                quality={100}
+                unoptimized
+              />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900">Frete Amostra Grátis Café Especial</h3>
+              <p className="text-gray-600 text-sm">Quantidade: 1</p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-bold text-gray-900">R$ 19,90</p>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-semibold text-gray-900">Total</span>
+              <span className="text-xl font-bold text-amber-600">R$ 19,90</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Customer Data Section */}
+        <div className="bg-gray-50 rounded-xl p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Dados do Cliente</h2>
+          
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <User className="w-5 h-5 text-gray-400 mt-1" />
+              <div>
+                <p className="font-medium text-gray-900">{customerData.full_name}</p>
+                <p className="text-sm text-gray-600">CPF: {customerData.cpf}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <Mail className="w-5 h-5 text-gray-400 mt-1" />
+              <p className="text-gray-900">{customerData.email}</p>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <Phone className="w-5 h-5 text-gray-400 mt-1" />
+              <p className="text-gray-900">{customerData.phone}</p>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <MapPin className="w-5 h-5 text-gray-400 mt-1" />
+              <div>
+                <p className="text-gray-900">
+                  {customerData.address_line1}, {customerData.number}
+                  {customerData.address_line2 && ` - ${customerData.address_line2}`}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {customerData.district} • {customerData.city} - {customerData.state}
+                </p>
+                <p className="text-sm text-gray-600">CEP: {customerData.postal_code}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Button */}
+        <div className="text-center space-y-4">
+          {paymentClicked && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-blue-800 text-sm">
+                ✅ Você será redirecionado para o Mercado Pago em uma nova aba para concluir o pagamento.
+              </p>
+            </div>
+          )}
+          <button
+            onClick={handlePayment}
+            disabled={loading}
+            className="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
+          >
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Processando...
+              </>
+            ) : (
+              <>
+                Clique aqui para pagar
+                <ArrowRight className="w-6 h-6" />
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}

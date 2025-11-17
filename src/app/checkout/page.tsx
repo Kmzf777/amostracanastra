@@ -7,6 +7,7 @@ import { ArrowRight, ArrowLeft } from "lucide-react";
 import { Suspense } from "react";
 
 function onlyDigits(v: string) { return v.replace(/\D/g, ""); }
+
 function isValidCPF(cpf: string) {
   const s = onlyDigits(cpf);
   if (s.length !== 11 || /^([0-9])\1+$/.test(s)) return false;
@@ -19,6 +20,32 @@ function isValidCPF(cpf: string) {
   const d1 = calc(s.slice(0, 9), 10);
   const d2 = calc(s.slice(0, 10), 11);
   return d1 === parseInt(s[9], 10) && d2 === parseInt(s[10], 10);
+}
+
+async function fetchCEPData(cep: string): Promise<{
+  logradouro: string;
+  bairro: string;
+  localidade: string;
+  uf: string;
+  erro?: boolean;
+} | null> {
+  try {
+    const cleanCEP = onlyDigits(cep);
+    const response = await fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`);
+    const data = await response.json();
+    
+    if (data.erro) return null;
+    
+    return {
+      logradouro: data.logradouro || '',
+      bairro: data.bairro || '',
+      localidade: data.localidade || '',
+      uf: data.uf || ''
+    };
+  } catch (error) {
+    console.error('Erro ao buscar CEP:', error);
+    return null;
+  }
 }
 
 function formatCPF(v: string) {
@@ -91,15 +118,7 @@ const questions: Question[] = [
     errorMessage: 'CPF inválido',
     animationText: "Seu CPF para o pedido?"
   },
-  {
-    id: 'receiver_name',
-    type: 'text',
-    label: 'Destinatário',
-    placeholder: 'Nome do destinatário',
-    validation: (value) => value.trim().length >= 3,
-    errorMessage: 'Nome do destinatário obrigatório',
-    animationText: "Quem vai receber a amostra?"
-  },
+
   {
     id: 'postal_code',
     type: 'cep',
@@ -174,6 +193,7 @@ function CheckoutPageContent() {
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   
   const revealRef = useRef<VerticalCutRevealRef>(null);
 
@@ -182,7 +202,6 @@ function CheckoutPageContent() {
     email: "",
     phone: "",
     cpf: "",
-    receiver_name: "",
     address_line1: "",
     address_line2: "",
     number: "",
@@ -207,11 +226,49 @@ function CheckoutPageContent() {
     }
   };
 
+  const handleCEPSearch = async (cep: string) => {
+    setLoading(true);
+    try {
+      const cepData = await fetchCEPData(cep);
+      if (cepData) {
+        // Atualizar os campos do formulário com os dados do CEP
+        setFormData(prev => ({
+          ...prev,
+          address_line1: cepData.logradouro,
+          district: cepData.bairro,
+          city: cepData.localidade,
+          state: cepData.uf
+        }));
+        
+        // Se já estivermos na etapa de CEP, mostrar mensagem de sucesso
+        if (currentQuestion.id === 'postal_code') {
+          setSuccessMessage("CEP encontrado! Endereço preenchido automaticamente.");
+          setTimeout(() => setSuccessMessage(""), 3000);
+        }
+      } else {
+        setError("CEP não encontrado. Por favor, preencha o endereço manualmente.");
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar CEP:', error);
+      setError("Erro ao buscar CEP. Por favor, preencha o endereço manualmente.");
+      setTimeout(() => setError(""), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     const formattedValue = formatInputValue(value, currentQuestion.id === 'cpf' ? 'cpf' : currentQuestion.id === 'phone' ? 'tel' : currentQuestion.id === 'postal_code' ? 'cep' : currentQuestion.type);
     setInputValue(formattedValue);
     setError("");
+    setSuccessMessage("");
+    
+    // Buscar CEP automaticamente quando o CEP estiver completo
+    if (currentQuestion.id === 'postal_code' && onlyDigits(value).length === 8) {
+      handleCEPSearch(onlyDigits(value));
+    }
   };
 
   const handleNext = async () => {
@@ -241,8 +298,23 @@ function CheckoutPageContent() {
     if (currentQuestionIndex < questions.length - 1) {
       setIsAnimatingOut(true);
       setTimeout(() => {
-        setCurrentQuestionIndex(prev => prev + 1);
-        setInputValue("");
+        const nextIndex = currentQuestionIndex + 1;
+        setCurrentQuestionIndex(nextIndex);
+        
+        // Se o próximo campo já estiver preenchido (ex: pelo CEP), pular para o próximo vazio
+        const nextQuestion = questions[nextIndex];
+        const nextValue = formData[nextQuestion.id as keyof typeof formData] || "";
+        
+        if (nextValue && nextIndex < questions.length - 1) {
+          // Se já tem valor e não é o último campo, ir para o próximo
+          setCurrentQuestionIndex(nextIndex + 1);
+          const nextNextQuestion = questions[nextIndex + 1];
+          const nextNextValue = formData[nextNextQuestion.id as keyof typeof formData] || "";
+          setInputValue(nextNextValue);
+        } else {
+          setInputValue(nextValue);
+        }
+        
         setError("");
         setIsAnimatingOut(false);
         // Animation will be triggered by useEffect
@@ -270,30 +342,30 @@ function CheckoutPageContent() {
   const handleSubmit = async () => {
     setLoading(true);
     
-    // Prepare customer and shipment data
-    const customer = {
-      full_name: formData.full_name,
-      email: formData.email,
-      phone: formData.phone,
-      cpf: formData.cpf,
-    };
-    
-    const shipment = {
-      receiver_name: formData.receiver_name,
-      address_line1: formData.address_line1,
-      address_line2: formData.address_line2,
-      number: formData.number,
-      district: formData.district,
-      city: formData.city,
-      state: formData.state,
-      postal_code: formData.postal_code,
-    };
-    
-    // Redirect to order summary page with all data
-    const customerData = encodeURIComponent(JSON.stringify(customer));
-    const shipmentData = encodeURIComponent(JSON.stringify(shipment));
-    
-    router.push(`/checkout/summary?code=${code}&customer=${customerData}&shipment=${shipmentData}`);
+    try {
+      // Salvar dados do cliente no localStorage para o resumo do pedido
+      localStorage.setItem('checkout_customer_data', JSON.stringify({
+        full_name: formData.full_name,
+        email: formData.email,
+        phone: formData.phone,
+        cpf: formData.cpf,
+        address_line1: formData.address_line1,
+        address_line2: formData.address_line2,
+        number: formData.number,
+        district: formData.district,
+        city: formData.city,
+        state: formData.state,
+        postal_code: formData.postal_code,
+      }));
+
+      // Redirecionar para página de resumo do pedido
+      router.push(`/checkout/resumo?code=${code}`);
+      
+    } catch (error) {
+      console.error('Erro ao processar checkout:', error);
+      setError('Erro ao processar pedido. Tente novamente.');
+      setLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -361,10 +433,19 @@ function CheckoutPageContent() {
                     placeholder={currentQuestion.placeholder}
                     className="w-full text-lg px-6 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-0 transition-colors duration-200 bg-white"
                     autoFocus
+                    disabled={loading && currentQuestion.id === 'postal_code'}
                   />
+                  {loading && currentQuestion.id === 'postal_code' && (
+                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                      <div className="w-5 h-5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
                 </div>
                 {error && (
                   <p className="text-red-500 text-sm text-center">{error}</p>
+                )}
+                {successMessage && (
+                  <p className="text-green-600 text-sm text-center">{successMessage}</p>
                 )}
                 
                 {/* Button positioned below and to the right */}
