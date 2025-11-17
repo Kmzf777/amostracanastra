@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { getSupabaseServer } from '@/lib/supabaseServer';
 
 // Função para validar a assinatura do Mercado Pago
 function validateSignature(headers: Headers): boolean {
@@ -57,6 +57,7 @@ async function getPaymentStatus(orderId: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseServer()
     const body = await request.json();
     const headers = request.headers;
     

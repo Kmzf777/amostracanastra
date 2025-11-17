@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServer } from '@/lib/supabaseServer'
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
-    const supabase = getSupabaseServer()
+    getSupabaseServer()
     
     // Criar dados iniciais se necessário
     // Por enquanto, apenas retornar sucesso

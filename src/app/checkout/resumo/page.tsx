@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { ArrowLeft, ArrowRight, User, Mail, Phone, MapPin } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 
 interface CustomerData {
   full_name: string;
@@ -54,7 +54,7 @@ function extractPaymentLink(response: unknown): string | null {
   return null;
 }
 
-export default function OrderSummary() {
+function OrderSummaryContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -268,4 +268,12 @@ export default function OrderSummary() {
       </div>
     </main>
   );
+}
+
+export default function OrderSummary() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center">Carregando...</div>}>
+      <OrderSummaryContent />
+    </Suspense>
+  )
 }

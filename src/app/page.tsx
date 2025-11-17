@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PinInput6Mobile from "@/components/ui/pin-input-6-mobile";
 import { ArrowRight } from "lucide-react";
@@ -20,16 +20,7 @@ function HomePageContent() {
     console.log("Aplicação iniciada - Supabase conectado");
   }, []);
 
-  useEffect(() => {
-    const urlCode = (sp.get("code") || "").trim();
-    if (/^\d{6}$/.test(urlCode)) {
-      setLoading(true);
-      setCode(urlCode);
-      validateCode(urlCode);
-    }
-  }, [sp, router]);
-
-  async function validateCode(codeToValidate: string) {
+  const validateCode = useCallback(async (codeToValidate: string) => {
     try {
       const res = await fetch('/api/codes/validate', {
         method: 'POST',
@@ -56,7 +47,18 @@ function HomePageContent() {
       setModalOpen(true)
       setLoading(false)
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    const urlCode = (sp.get("code") || "").trim();
+    if (/^\d{6}$/.test(urlCode)) {
+      setLoading(true);
+      setCode(urlCode);
+      validateCode(urlCode);
+    }
+  }, [sp, validateCode]);
+
+  
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
