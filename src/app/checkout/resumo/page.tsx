@@ -21,39 +21,35 @@ interface CustomerData {
 }
 
 // Função auxiliar para extrair o link de pagamento de diferentes formatos de resposta
-function extractPaymentLink(response: any): string | null {
+function extractPaymentLink(response: unknown): string | null {
   console.log('Extraindo link de:', response);
-  
-  // Formato 1: Array com objeto [{ link_de_pagamento: "url" }]
+
   if (Array.isArray(response) && response.length > 0) {
-    if (response[0].link_de_pagamento) {
-      return response[0].link_de_pagamento;
+    const first = response[0] as Record<string, unknown>;
+    const val = first['link_de_pagamento'];
+    if (typeof val === 'string') return val;
+  }
+
+  if (typeof response === 'object' && response !== null) {
+    const obj = response as Record<string, unknown>;
+    const direct = obj['link_de_pagamento'];
+    if (typeof direct === 'string') return direct;
+
+    const data = obj['data'] as Record<string, unknown> | undefined;
+    const nested = data?.['link_de_pagamento'];
+    if (typeof nested === 'string') return nested;
+
+    const possibleKeys = ['link', 'url', 'payment_link', 'checkout_url', 'link_de_pagamento'] as const;
+    for (const key of possibleKeys) {
+      const candidate = obj[key];
+      if (typeof candidate === 'string' && candidate.startsWith('http')) return candidate;
     }
   }
-  
-  // Formato 2: Objeto direto { link_de_pagamento: "url" }
-  if (response && response.link_de_pagamento) {
-    return response.link_de_pagamento;
-  }
-  
-  // Formato 3: Objeto encapsulado { data: { link_de_pagamento: "url" } }
-  if (response && response.data && response.data.link_de_pagamento) {
-    return response.data.link_de_pagamento;
-  }
-  
-  // Formato 4: String direta (caso venha só a URL)
+
   if (typeof response === 'string' && response.startsWith('http')) {
     return response;
   }
-  
-  // Tentar encontrar link em outras propriedades comuns
-  const possibleKeys = ['link', 'url', 'payment_link', 'checkout_url', 'link_de_pagamento'];
-  for (const key of possibleKeys) {
-    if (response && response[key]) {
-      return response[key];
-    }
-  }
-  
+
   console.log('Nenhum link encontrado nos formatos conhecidos');
   return null;
 }

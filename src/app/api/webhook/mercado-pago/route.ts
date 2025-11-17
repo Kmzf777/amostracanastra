@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 
 // Função para validar a assinatura do Mercado Pago
-function validateSignature(headers: Headers, body: any): boolean {
+function validateSignature(headers: Headers): boolean {
   const signature = headers.get('x-signature');
   const requestId = headers.get('x-request-id');
   
@@ -64,13 +64,13 @@ export async function POST(request: NextRequest) {
     console.log('📋 Headers:', Object.fromEntries(headers.entries()));
     
     // Validar assinatura (para produção, implementar validação completa)
-    if (!validateSignature(headers, body)) {
+    if (!validateSignature(headers)) {
       console.log('⚠️ Assinatura inválida - continuando para testes');
       // return NextResponse.json({ error: 'Assinatura inválida' }, { status: 401 });
     }
     
     // Extrair informações do webhook
-    const { resource, topic, query } = body;
+    const { resource, topic } = body as { resource?: string; topic?: string };
     
     if (topic !== 'merchant_order') {
       console.log('📋 Tópico não é merchant_order:', topic);
