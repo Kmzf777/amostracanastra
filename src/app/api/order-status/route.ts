@@ -16,11 +16,10 @@ export async function GET(request: NextRequest) {
     
     const supabase = getSupabaseServer()
     
-    // Buscar status do pagamento
     let query = supabase
       .from('vendas_amostra')
-      .select('payment_link_status, order_status, updated_at')
-      .order('updated_at', { ascending: false })
+      .select('payment_link_status, payment_link_id, created_at')
+      .order('created_at', { ascending: false })
       .limit(1)
     
     if (paymentLinkId) {
@@ -65,8 +64,8 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       payment_link_status: order.payment_link_status,
-      order_status: order.order_status,
-      updated_at: order.updated_at,
+      payment_link_id: order.payment_link_id,
+      created_at: order.created_at,
       is_paid: order.payment_link_status === true
     })
     

@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { ArrowLeft, ArrowRight, User, Mail, Phone, MapPin } from "lucide-react";
 import { useState, useEffect, useCallback, Suspense } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 interface CustomerData {
   full_name: string;
@@ -74,60 +75,36 @@ function OrderSummaryContent() {
     }
   }, [code, router]);
 
-  // Função para verificar status do pagamento
-  const checkPaymentStatus = useCallback(async (linkId: string) => {
+  const checkInitialStatus = useCallback(async (linkId: string) => {
     try {
       const response = await fetch(`/api/order-status?payment_link_id=${linkId}`);
       if (response.ok) {
         const data = await response.json();
         if (data.is_paid) {
-          // Pagamento confirmado, redirecionar para sucesso
           router.push('/checkout/sucesso');
           return true;
         }
       }
-    } catch (error) {
-      console.error('Erro ao verificar status:', error);
-    }
+    } catch {}
     return false;
   }, [router]);
 
-  // Efeito para verificar status do pagamento periodicamente
   useEffect(() => {
     if (!paymentLinkId) return;
-
-    let checkInterval: NodeJS.Timeout;
-    let timeout: NodeJS.Timeout;
-
-    const startChecking = async () => {
-      // Verificar imediatamente
-      const isPaid = await checkPaymentStatus(paymentLinkId);
-      
-      if (!isPaid) {
-        // Se não estiver pago, continuar verificando a cada 3 segundos
-        checkInterval = setInterval(async () => {
-          const paid = await checkPaymentStatus(paymentLinkId);
-          if (paid) {
-            clearInterval(checkInterval);
-            clearTimeout(timeout);
-          }
-        }, 3000);
-
-        // Timeout após 5 minutos (300 segundos)
-        timeout = setTimeout(() => {
-          clearInterval(checkInterval);
-          console.log('⏰ Timeout na verificação de pagamento');
-        }, 300000);
-      }
-    };
-
-    startChecking();
-
+    checkInitialStatus(paymentLinkId);
+    const channel = supabase
+      .channel(`payment_status_${paymentLinkId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vendas_amostra', filter: `payment_link_id=eq.${paymentLinkId}` }, (payload: any) => {
+        const newStatus = payload.new?.payment_link_status;
+        if (newStatus === true) {
+          router.push('/checkout/sucesso');
+        }
+      })
+      .subscribe();
     return () => {
-      if (checkInterval) clearInterval(checkInterval);
-      if (timeout) clearTimeout(timeout);
+      supabase.removeChannel(channel);
     };
-  }, [paymentLinkId, checkPaymentStatus]);
+  }, [paymentLinkId, router, checkInitialStatus]);
 
   const handleBackToEdit = () => {
     router.push(`/checkout?code=${code}`);
