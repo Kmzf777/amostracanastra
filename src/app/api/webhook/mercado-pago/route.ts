@@ -101,22 +101,68 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Formato de webhook não reconhecido' }, { status: 400 });
     }
     
-    console.log('🔄 Persistindo status para preference_id:', preferenceId);
-    const { data: upsertData, error: upsertError } = await supabase
+    console.log('🔄 Atualizando status para preference_id:', preferenceId);
+    
+    // Primeiro, tentar encontrar o registro existente
+    const { data: existingData, error: findError } = await supabase
       .from('vendas_amostra')
-      .upsert({
-        payment_link_id: preferenceId,
-        payment_link_status: isPaid,
-        order_status: paymentStatus,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'payment_link_id' })
-      .select();
-
-    if (upsertError) {
-      console.error('❌ Erro ao salvar Supabase:', upsertError);
-      return NextResponse.json({ error: 'Erro ao atualizar banco de dados' }, { status: 500 });
+      .select('id')
+      .eq('payment_link_id', preferenceId)
+      .single();
+    
+    if (findError && findError.code !== 'PGRST116') {
+      console.error('❌ Erro ao buscar registro:', findError);
+      return NextResponse.json({ error: 'Erro ao buscar registro' }, { status: 500 });
     }
-    console.log('✅ Status persistido:', upsertData);
+    
+    let result;
+    if (existingData) {
+      // Se existe, atualizar
+      const { data: updateData, error: updateError } = await supabase
+        .from('vendas_amostra')
+        .update({
+          payment_link_status: isPaid
+        })
+        .eq('payment_link_id', preferenceId)
+        .select();
+      
+      if (updateError) {
+        console.error('❌ Erro ao atualizar:', updateError);
+        return NextResponse.json({ error: 'Erro ao atualizar banco de dados' }, { status: 500 });
+      }
+      result = updateData;
+    } else {
+      // Se não existe, inserir novo registro com dados mínimos
+      const { data: insertData, error: insertError } = await supabase
+        .from('vendas_amostra')
+        .insert({
+          payment_link_id: preferenceId,
+          payment_link_status: isPaid,
+          payment_link_url: '',
+          nome_completo: 'Webhook Payment',
+          cpf: '',
+          number: '',
+          endereco: '',
+          endereco_numero: '',
+          bairro: '',
+          cidade: '',
+          estado: '',
+          cep: '',
+          complemento: '',
+          email: '',
+          codigo_usado: '',
+          codigo_gerado: ''
+        })
+        .select();
+      
+      if (insertError) {
+        console.error('❌ Erro ao inserir:', insertError);
+        return NextResponse.json({ error: 'Erro ao inserir no banco de dados' }, { status: 500 });
+      }
+      result = insertData;
+    }
+
+    console.log('✅ Status persistido:', result);
     
     // Se o pagamento foi confirmado, podemos enviar notificação ou email
     if (isPaid) {
@@ -129,7 +175,7 @@ export async function POST(request: NextRequest) {
       message: 'Webhook processado com sucesso',
       preferenceId,
       isPaid,
-      orderStatus: paymentStatus
+      result: result
     }, { status: 200 });
     
   } catch (error) {
