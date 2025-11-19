@@ -1,59 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
-import { createHmac } from 'crypto';
-
-// Função para validar a assinatura do webhook (n8n ou Mercado Pago)
-function validateSignature(headers: Headers, body: unknown): boolean {
-  const bypass = (process.env.WEBHOOK_DISABLE_SIGNATURE === 'true') || (process.env.NODE_ENV !== 'production')
-  if (bypass) {
-    return true
-  }
-  const signature = headers.get('x-signature');
-  const requestId = headers.get('x-request-id');
-  
-  // Para webhooks do n8n, podemos usar um segredo diferente
-  const n8nSignature = headers.get('x-n8n-signature');
-  
-  if (n8nSignature) {
-    // Validação para webhooks do n8n
-    const secret = process.env.N8N_WEBHOOK_SECRET;
-    if (!secret) {
-      console.log('⚠️ N8N_WEBHOOK_SECRET não configurado');
-      return true; // Permitir em desenvolvimento
-    }
-    
-    const expectedSignature = createHmac('sha256', secret)
-      .update(JSON.stringify(body))
-      .digest('hex');
-    
-    const isValid = n8nSignature === expectedSignature;
-    console.log('🔐 Validação n8n:', isValid ? '✅ Válida' : '❌ Inválida');
-    return isValid;
-  }
-  
-  if (!signature || !requestId) {
-    console.log('⚠️ Assinatura ou request ID ausentes');
-    return false;
-  }
-  
-  console.log('🔐 Assinatura recebida:', signature);
-  console.log('🆔 Request ID:', requestId);
-  
-  // Validação para Mercado Pago
-  const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
-  if (!secret) {
-    console.log('⚠️ MERCADO_PAGO_WEBHOOK_SECRET não configurado');
-    return false;
-  }
-  
-  const expectedSignature = createHmac('sha256', secret)
-    .update(`${requestId}.${JSON.stringify(body)}`)
-    .digest('hex');
-  
-  const isValid = signature === `v1=${expectedSignature}`;
-  console.log('🔐 Validação Mercado Pago:', isValid ? '✅ Válida' : '❌ Inválida');
-  return isValid;
-}
+// Assinatura desativada: webhooks são aceitos sem validação
 
 // Função para consultar o status do pagamento na API do Mercado Pago
 async function getPaymentStatus(orderId: string) {
@@ -95,11 +42,7 @@ export async function POST(request: NextRequest) {
     console.log('📡 Webhook recebido:', JSON.stringify(body, null, 2));
     console.log('📋 Headers:', Object.fromEntries(headers.entries()));
     
-    // Validar assinatura (exigida em produção; ignorada em ambientes de teste)
-    const signatureValid = validateSignature(headers, body)
-    if (!signatureValid) {
-      return NextResponse.json({ error: 'Assinatura inválida' }, { status: 401 })
-    }
+    // Assinatura desativada: aceitar todos os webhooks
     
     // Detectar tipo de webhook (n8n ou Mercado Pago)
     const { payment_link_id, payment_link_status, resource, topic } = body as { 
