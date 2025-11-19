@@ -101,50 +101,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Formato de webhook não reconhecido' }, { status: 400 });
     }
     
-    // Atualizar status na tabela vendas_amostra
-    console.log('🔄 Atualizando status para preference_id:', preferenceId);
-    
-    // Primeiro tentar atualizar um registro existente
-    const { data: existingData, error: updateError } = await supabase
+    console.log('🔄 Persistindo status para preference_id:', preferenceId);
+    const { data: upsertData, error: upsertError } = await supabase
       .from('vendas_amostra')
-      .update({ 
+      .upsert({
+        payment_link_id: preferenceId,
         payment_link_status: isPaid,
         order_status: paymentStatus,
         updated_at: new Date().toISOString()
-      })
-      .eq('payment_link_id', preferenceId)
+      }, { onConflict: 'payment_link_id' })
       .select();
-    
-    if (updateError) {
-      console.error('❌ Erro ao atualizar Supabase:', updateError);
+
+    if (upsertError) {
+      console.error('❌ Erro ao salvar Supabase:', upsertError);
       return NextResponse.json({ error: 'Erro ao atualizar banco de dados' }, { status: 500 });
     }
-    
-    // Se não encontrou registro para atualizar, criar um novo
-    if (!existingData || existingData.length === 0) {
-      console.log('⚠️ Nenhum registro encontrado com esse preference_id, criando novo...');
-      
-      const { data: newData, error: insertError } = await supabase
-        .from('vendas_amostra')
-        .insert({
-          payment_link_id: preferenceId,
-          payment_link_status: isPaid,
-          order_status: paymentStatus,
-          follow_up_counter: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select();
-      
-      if (insertError) {
-        console.error('❌ Erro ao inserir novo registro:', insertError);
-        return NextResponse.json({ error: 'Erro ao criar registro de venda' }, { status: 500 });
-      }
-      
-      console.log('✅ Novo registro criado:', newData);
-    } else {
-      console.log('✅ Registro existente atualizado:', existingData);
-    }
+    console.log('✅ Status persistido:', upsertData);
     
     // Se o pagamento foi confirmado, podemos enviar notificação ou email
     if (isPaid) {
