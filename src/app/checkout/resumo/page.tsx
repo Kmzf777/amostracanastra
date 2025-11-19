@@ -60,6 +60,8 @@ function OrderSummaryContent() {
   const [loading, setLoading] = useState(false);
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
   const [paymentClicked, setPaymentClicked] = useState(false);
+  const [paymentLinkId, setPaymentLinkId] = useState<string | null>(null);
+  const [isCheckingPayment, setIsCheckingPayment] = useState(false);
   const code = searchParams.get("code") || "";
 
   useEffect(() => {
@@ -72,6 +74,61 @@ function OrderSummaryContent() {
       router.push(`/checkout?code=${code}`);
     }
   }, [code, router]);
+
+  // Função para verificar status do pagamento
+  const checkPaymentStatus = async (linkId: string) => {
+    try {
+      const response = await fetch(`/api/order-status?payment_link_id=${linkId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.is_paid) {
+          // Pagamento confirmado, redirecionar para sucesso
+          router.push('/checkout/sucesso');
+          return true;
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status:', error);
+    }
+    return false;
+  };
+
+  // Efeito para verificar status do pagamento periodicamente
+  useEffect(() => {
+    if (!paymentLinkId || isCheckingPayment) return;
+
+    let checkInterval: NodeJS.Timeout;
+    let timeout: NodeJS.Timeout;
+
+    const startChecking = async () => {
+      // Verificar imediatamente
+      const isPaid = await checkPaymentStatus(paymentLinkId);
+      
+      if (!isPaid) {
+        // Se não estiver pago, continuar verificando a cada 3 segundos
+        checkInterval = setInterval(async () => {
+          const paid = await checkPaymentStatus(paymentLinkId);
+          if (paid) {
+            clearInterval(checkInterval);
+            clearTimeout(timeout);
+          }
+        }, 3000);
+
+        // Timeout após 5 minutos (300 segundos)
+        timeout = setTimeout(() => {
+          clearInterval(checkInterval);
+          console.log('⏰ Timeout na verificação de pagamento');
+        }, 300000);
+      }
+    };
+
+    startChecking();
+
+    return () => {
+      if (checkInterval) clearInterval(checkInterval);
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [paymentLinkId, isCheckingPayment, router]);
 
   const handleBackToEdit = () => {
     router.push(`/checkout?code=${code}`);
@@ -123,6 +180,29 @@ function OrderSummaryContent() {
       
       // Extrair link de pagamento usando a função auxiliar
       const paymentLink = extractPaymentLink(result);
+      
+      // Tentar extrair o payment_link_id da resposta
+      let extractedPaymentLinkId = null;
+      if (Array.isArray(result) && result.length > 0) {
+        const first = result[0] as Record<string, unknown>;
+        extractedPaymentLinkId = first['payment_link_id'] as string || first['preference_id'] as string;
+      } else if (typeof result === 'object' && result !== null) {
+        const obj = result as Record<string, unknown>;
+        extractedPaymentLinkId = obj['payment_link_id'] as string || obj['preference_id'] as string;
+        
+        if (!extractedPaymentLinkId && obj['data']) {
+          const data = obj['data'] as Record<string, unknown>;
+          extractedPaymentLinkId = data['payment_link_id'] as string || data['preference_id'] as string;
+        }
+      }
+      
+      if (extractedPaymentLinkId) {
+        console.log('Payment Link ID encontrado:', extractedPaymentLinkId);
+        setPaymentLinkId(extractedPaymentLinkId);
+        
+        // Salvar no localStorage para persistência
+        localStorage.setItem('payment_link_id', extractedPaymentLinkId);
+      }
       
       if (paymentLink) {
         console.log('Link de pagamento encontrado:', paymentLink);
@@ -245,17 +325,28 @@ function OrderSummaryContent() {
               <p className="text-blue-800 text-sm">
                 ✅ Você será redirecionado para o Mercado Pago em uma nova aba para concluir o pagamento.
               </p>
+              {paymentLinkId && (
+                <div className="mt-2">
+                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin inline-block mr-2"></div>
+                  <span className="text-blue-700 text-sm">Aguardando confirmação do pagamento...</span>
+                </div>
+              )}
             </div>
           )}
           <button
             onClick={handlePayment}
-            disabled={loading}
+            disabled={loading || (paymentClicked && paymentLinkId !== null)}
             className="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
           >
             {loading ? (
               <>
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 Processando...
+              </>
+            ) : paymentClicked && paymentLinkId ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Aguardando Pagamento...
               </>
             ) : (
               <>

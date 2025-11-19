@@ -1,10 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
+import { createHmac } from 'crypto';
 
-// Função para validar a assinatura do Mercado Pago
-function validateSignature(headers: Headers): boolean {
+// Função para validar a assinatura do webhook (n8n ou Mercado Pago)
+function validateSignature(headers: Headers, body: any): boolean {
+  const bypass = (process.env.WEBHOOK_DISABLE_SIGNATURE === 'true') || (process.env.NODE_ENV !== 'production')
+  if (bypass) {
+    return true
+  }
   const signature = headers.get('x-signature');
   const requestId = headers.get('x-request-id');
+  
+  // Para webhooks do n8n, podemos usar um segredo diferente
+  const n8nSignature = headers.get('x-n8n-signature');
+  
+  if (n8nSignature) {
+    // Validação para webhooks do n8n
+    const secret = process.env.N8N_WEBHOOK_SECRET;
+    if (!secret) {
+      console.log('⚠️ N8N_WEBHOOK_SECRET não configurado');
+      return true; // Permitir em desenvolvimento
+    }
+    
+    const expectedSignature = createHmac('sha256', secret)
+      .update(JSON.stringify(body))
+      .digest('hex');
+    
+    const isValid = n8nSignature === expectedSignature;
+    console.log('🔐 Validação n8n:', isValid ? '✅ Válida' : '❌ Inválida');
+    return isValid;
+  }
   
   if (!signature || !requestId) {
     console.log('⚠️ Assinatura ou request ID ausentes');
@@ -14,14 +39,20 @@ function validateSignature(headers: Headers): boolean {
   console.log('🔐 Assinatura recebida:', signature);
   console.log('🆔 Request ID:', requestId);
   
-  // TODO: Implementar validação HMAC completa com sua chave secreta
-  // const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
-  // const expectedSignature = createHmac('sha256', secret)
-  //   .update(`${requestId}.${JSON.stringify(body)}`)
-  //   .digest('hex');
-  // return signature === `v1=${expectedSignature}`;
+  // Validação para Mercado Pago
+  const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
+  if (!secret) {
+    console.log('⚠️ MERCADO_PAGO_WEBHOOK_SECRET não configurado');
+    return false;
+  }
   
-  return true; // Aceitar temporariamente para testes
+  const expectedSignature = createHmac('sha256', secret)
+    .update(`${requestId}.${JSON.stringify(body)}`)
+    .digest('hex');
+  
+  const isValid = signature === `v1=${expectedSignature}`;
+  console.log('🔐 Validação Mercado Pago:', isValid ? '✅ Válida' : '❌ Inválida');
+  return isValid;
 }
 
 // Função para consultar o status do pagamento na API do Mercado Pago
@@ -61,55 +92,70 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const headers = request.headers;
     
-    console.log('📡 Webhook Mercado Pago recebido:', JSON.stringify(body, null, 2));
+    console.log('📡 Webhook recebido:', JSON.stringify(body, null, 2));
     console.log('📋 Headers:', Object.fromEntries(headers.entries()));
     
-    // Validar assinatura (para produção, implementar validação completa)
-    if (!validateSignature(headers)) {
-      console.log('⚠️ Assinatura inválida - continuando para testes');
-      // return NextResponse.json({ error: 'Assinatura inválida' }, { status: 401 });
+    // Validar assinatura (exigida em produção; ignorada em ambientes de teste)
+    const signatureValid = validateSignature(headers, body)
+    if (!signatureValid) {
+      return NextResponse.json({ error: 'Assinatura inválida' }, { status: 401 })
     }
     
-    // Extrair informações do webhook
-    const { resource, topic } = body as { resource?: string; topic?: string };
+    // Detectar tipo de webhook (n8n ou Mercado Pago)
+    const { payment_link_id, payment_link_status, resource, topic } = body as { 
+      payment_link_id?: string; 
+      payment_link_status?: boolean | string; 
+      resource?: string; 
+      topic?: string; 
+    };
     
-    if (topic !== 'merchant_order') {
-      console.log('📋 Tópico não é merchant_order:', topic);
-      return NextResponse.json({ message: 'Tópico não processado' }, { status: 200 });
+    let preferenceId: string;
+    let isPaid: boolean;
+    let paymentStatus: string;
+    
+    // Se for webhook do n8n (formato simplificado)
+    if (payment_link_id && payment_link_status !== undefined) {
+      console.log('🔍 Detectado webhook do n8n');
+      preferenceId = payment_link_id;
+      isPaid = payment_link_status === true || payment_link_status === 'true';
+      paymentStatus = isPaid ? 'paid' : 'pending';
+      
+      console.log('💰 Status do pagamento (n8n):', paymentStatus, 'Pago:', isPaid);
     }
-    
-    if (!resource) {
-      console.log('❌ Resource não encontrado');
-      return NextResponse.json({ error: 'Resource não encontrado' }, { status: 400 });
+    // Se for webhook direto do Mercado Pago
+    else if (resource && topic === 'merchant_order') {
+      console.log('🔍 Detectado webhook do Mercado Pago');
+      
+      // Extrair ID do pedido da URL
+      const orderId = resource.split('/').pop();
+      console.log('🆔 Order ID extraído:', orderId);
+      
+      if (!orderId) {
+        console.log('❌ ID do pedido não encontrado');
+        return NextResponse.json({ error: 'ID do pedido não encontrado' }, { status: 400 });
+      }
+      
+      // Consultar status do pagamento na API do Mercado Pago
+      const orderData = await getPaymentStatus(orderId);
+      
+      if (!orderData) {
+        return NextResponse.json({ error: 'Erro ao consultar status do pagamento' }, { status: 500 });
+      }
+      
+      isPaid = orderData.order_status === 'paid';
+      paymentStatus = orderData.order_status;
+      preferenceId = orderData.preference_id;
+      
+      if (!preferenceId) {
+        console.log('❌ Preference ID não encontrado');
+        return NextResponse.json({ error: 'Preference ID não encontrado' }, { status: 400 });
+      }
+      
+      console.log('💰 Status do pagamento (MP):', paymentStatus, 'Pago:', isPaid);
     }
-    
-    // Extrair ID do pedido da URL
-    const orderId = resource.split('/').pop();
-    console.log('🆔 Order ID extraído:', orderId);
-    
-    if (!orderId) {
-      console.log('❌ ID do pedido não encontrado');
-      return NextResponse.json({ error: 'ID do pedido não encontrado' }, { status: 400 });
-    }
-    
-    // Consultar status do pagamento
-    const orderData = await getPaymentStatus(orderId);
-    
-    if (!orderData) {
-      return NextResponse.json({ error: 'Erro ao consultar status do pagamento' }, { status: 500 });
-    }
-    
-    // Verificar se o pedido foi pago
-    const isPaid = orderData.order_status === 'paid';
-    console.log('💰 Status do pagamento:', orderData.order_status, 'Pago:', isPaid);
-    
-    // Extrair informações relevantes
-    const preferenceId = orderData.preference_id;
-    const paymentStatus = orderData.order_status;
-    
-    if (!preferenceId) {
-      console.log('❌ Preference ID não encontrado');
-      return NextResponse.json({ error: 'Preference ID não encontrado' }, { status: 400 });
+    else {
+      console.log('❌ Formato de webhook não reconhecido');
+      return NextResponse.json({ error: 'Formato de webhook não reconhecido' }, { status: 400 });
     }
     
     // Atualizar status na tabela vendas_amostra
