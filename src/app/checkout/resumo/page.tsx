@@ -93,17 +93,22 @@ function OrderSummaryContent() {
   useEffect(() => {
     if (!paymentLinkId) return;
     checkInitialStatus(paymentLinkId);
+    if (!supabase) return;
     const channel = supabase
       .channel(`payment_status_${paymentLinkId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vendas_amostra', filter: `payment_link_id=eq.${paymentLinkId}` }, (payload: VendasAmostraUpdatePayload) => {
-        const newStatus = payload.new?.payment_link_status;
-        if (newStatus === true) {
-          router.push('/checkout/sucesso');
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'vendas_amostra', filter: `payment_link_id=eq.${paymentLinkId}` },
+        (payload: VendasAmostraUpdatePayload) => {
+          const newStatus = payload.new?.payment_link_status;
+          if (newStatus === true) {
+            router.push('/checkout/sucesso');
+          }
         }
-      })
+      )
       .subscribe();
     return () => {
-      supabase.removeChannel(channel);
+      supabase?.removeChannel(channel);
     };
   }, [paymentLinkId, router, checkInitialStatus]);
 
