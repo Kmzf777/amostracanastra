@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       preferenceId = payment_link_id;
       isPaid = payment_link_status === true || payment_link_status === 'true';
       console.log('💰 Status do pagamento (n8n):', isPaid ? 'paid' : 'pending', 'Pago:', isPaid);
+      console.log('📝 Payment Link ID:', preferenceId);
     }
     else {
       console.log('❌ Formato de webhook não reconhecido');
@@ -88,9 +89,11 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ Status persistido:', result);
+    console.log('📊 Dados atualizados:', JSON.stringify(result, null, 2));
     
     if (isPaid) {
       console.log('🎉 Pagamento confirmado! Enviando confirmação...');
+      console.log('🔄 O Realtime deve notificar a página de resumo agora...');
     }
     
     return NextResponse.json({ message: 'Webhook processado com sucesso', preferenceId, isPaid, result }, { status: 200 });

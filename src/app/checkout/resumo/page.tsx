@@ -74,6 +74,13 @@ function OrderSummaryContent() {
       // If no data found, redirect back to checkout
       router.push(`/checkout?code=${code}`);
     }
+    
+    // Recuperar payment_link_id do localStorage se existir
+    const savedPaymentLinkId = localStorage.getItem('payment_link_id');
+    if (savedPaymentLinkId) {
+      console.log('📦 Payment Link ID encontrado no localStorage:', savedPaymentLinkId);
+      setPaymentLinkId(savedPaymentLinkId);
+    }
   }, [code, router]);
 
   const checkInitialStatus = useCallback(async (linkId: string) => {
@@ -92,28 +99,101 @@ function OrderSummaryContent() {
 
   useEffect(() => {
     if (!paymentLinkId) return;
+    
+    console.log('🔄 Iniciando monitoramento para paymentLinkId:', paymentLinkId);
     checkInitialStatus(paymentLinkId);
-    if (!supabase) return;
-    const channel = supabase
-      .channel(`payment_status_${paymentLinkId}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'vendas_amostra', filter: `payment_link_id=eq.${paymentLinkId}` },
-        (payload: VendasAmostraUpdatePayload) => {
-          const newStatus = payload.new?.payment_link_status;
-          if (newStatus === true) {
+    
+    // Fallback: Implementar polling enquanto o Realtime não está configurado
+    const pollingInterval = setInterval(async () => {
+      try {
+        console.log('📊 Verificando status do pagamento...');
+        const response = await fetch(`/api/order-status?payment_link_id=${paymentLinkId}`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📋 Status recebido:', data);
+          if (data.is_paid) {
+            console.log('✅ Pagamento detectado! Redirecionando...');
             router.push('/checkout/sucesso');
+            clearInterval(pollingInterval);
           }
+        } else {
+          console.error('❌ Erro ao verificar status:', response.status);
         }
-      )
-      .subscribe();
+      } catch (error) {
+        console.error('❌ Erro no polling:', error);
+      }
+    }, 3000); // Verificar a cada 3 segundos
+    
+    console.log('⏰ Polling iniciado com intervalo de 3 segundos');
+    
+    // Tentar conectar ao Realtime também (se estiver disponível)
+    if (supabase) {
+      console.log('🔄 Configurando Supabase Realtime...');
+      const channel = supabase
+        .channel(`payment_status_${paymentLinkId}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'vendas_amostra', filter: `payment_link_id=eq.${paymentLinkId}` },
+          (payload: VendasAmostraUpdatePayload) => {
+            console.log('📡 Realtime update recebido:', payload);
+            const newStatus = payload.new?.payment_link_status;
+            if (newStatus === true) {
+              console.log('✅ Pagamento confirmado via Realtime! Redirecionando...');
+              router.push('/checkout/sucesso');
+              clearInterval(pollingInterval); // Limpar polling se Realtime funcionar
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('📡 Status da subscrição Realtime:', status);
+        });
+        
+      return () => {
+        supabase?.removeChannel(channel);
+        clearInterval(pollingInterval);
+      };
+    } else {
+      console.log('⚠️ Supabase não disponível, usando apenas polling');
+    }
+    
     return () => {
-      supabase?.removeChannel(channel);
+      clearInterval(pollingInterval);
+      console.log('🛑 Monitoramento finalizado');
     };
   }, [paymentLinkId, router, checkInitialStatus]);
 
   const handleBackToEdit = () => {
     router.push(`/checkout?code=${code}`);
+  };
+
+  const testRedirect = () => {
+    console.log('🧪 Testando redirecionamento manual...');
+    router.push('/checkout/sucesso');
+  };
+
+  const checkPaymentStatus = async () => {
+    if (!paymentLinkId) {
+      console.log('⚠️ Payment Link ID não encontrado');
+      return;
+    }
+    
+    console.log('🔍 Verificando status do pagamento...');
+    try {
+      const response = await fetch(`/api/order-status?payment_link_id=${paymentLinkId}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Status atual:', data);
+        if (data.is_paid) {
+          console.log('✅ Pagamento já está confirmado!');
+        } else {
+          console.log('⏳ Pagamento ainda pendente');
+        }
+      } else {
+        console.error('❌ Erro ao verificar status:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Erro:', error);
+    }
   };
 
   const handlePayment = async () => {
@@ -315,6 +395,29 @@ function OrderSummaryContent() {
               )}
             </div>
           )}
+          
+          {/* Botões de teste para debug */}
+          {paymentLinkId && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2">
+              <p className="text-yellow-800 text-sm font-medium">🧪 Modo Debug</p>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={checkPaymentStatus}
+                  className="px-3 py-1 bg-yellow-500 text-white text-xs rounded hover:bg-yellow-600 transition-colors"
+                >
+                  Verificar Status
+                </button>
+                <button
+                  onClick={testRedirect}
+                  className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors"
+                >
+                  Testar Redirecionamento
+                </button>
+              </div>
+              <p className="text-yellow-700 text-xs">Payment Link ID: {paymentLinkId}</p>
+            </div>
+          )}
+          
           <button
             onClick={handlePayment}
             disabled={loading || (paymentClicked && paymentLinkId !== null)}
