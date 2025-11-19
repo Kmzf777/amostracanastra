@@ -5,7 +5,7 @@ import Image from "next/image";
 import { ArrowLeft, ArrowRight, User, Mail, Phone, MapPin } from "lucide-react";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import type { PostgresChangesPayload } from "@supabase/supabase-js";
+interface VendasAmostraUpdatePayload { new?: { payment_link_status?: boolean } }
 
 interface CustomerData {
   full_name: string;
@@ -95,7 +95,7 @@ function OrderSummaryContent() {
     checkInitialStatus(paymentLinkId);
     const channel = supabase
       .channel(`payment_status_${paymentLinkId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vendas_amostra', filter: `payment_link_id=eq.${paymentLinkId}` }, (payload: PostgresChangesPayload<{ payment_link_status: boolean }>) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vendas_amostra', filter: `payment_link_id=eq.${paymentLinkId}` }, (payload: VendasAmostraUpdatePayload) => {
         const newStatus = payload.new?.payment_link_status;
         if (newStatus === true) {
           router.push('/checkout/sucesso');
