@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { ArrowLeft, ArrowRight, User, Mail, Phone, MapPin } from "lucide-react";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 
 interface CustomerData {
   full_name: string;
@@ -61,7 +61,6 @@ function OrderSummaryContent() {
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
   const [paymentClicked, setPaymentClicked] = useState(false);
   const [paymentLinkId, setPaymentLinkId] = useState<string | null>(null);
-  const [isCheckingPayment, setIsCheckingPayment] = useState(false);
   const code = searchParams.get("code") || "";
 
   useEffect(() => {
@@ -76,7 +75,7 @@ function OrderSummaryContent() {
   }, [code, router]);
 
   // Função para verificar status do pagamento
-  const checkPaymentStatus = async (linkId: string) => {
+  const checkPaymentStatus = useCallback(async (linkId: string) => {
     try {
       const response = await fetch(`/api/order-status?payment_link_id=${linkId}`);
       if (response.ok) {
@@ -91,11 +90,11 @@ function OrderSummaryContent() {
       console.error('Erro ao verificar status:', error);
     }
     return false;
-  };
+  }, [router]);
 
   // Efeito para verificar status do pagamento periodicamente
   useEffect(() => {
-    if (!paymentLinkId || isCheckingPayment) return;
+    if (!paymentLinkId) return;
 
     let checkInterval: NodeJS.Timeout;
     let timeout: NodeJS.Timeout;
@@ -128,7 +127,7 @@ function OrderSummaryContent() {
       if (checkInterval) clearInterval(checkInterval);
       if (timeout) clearTimeout(timeout);
     };
-  }, [paymentLinkId, isCheckingPayment, router]);
+  }, [paymentLinkId, checkPaymentStatus]);
 
   const handleBackToEdit = () => {
     router.push(`/checkout?code=${code}`);

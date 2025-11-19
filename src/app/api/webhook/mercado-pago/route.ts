@@ -3,7 +3,7 @@ import { getSupabaseServer } from '@/lib/supabaseServer';
 import { createHmac } from 'crypto';
 
 // Função para validar a assinatura do webhook (n8n ou Mercado Pago)
-function validateSignature(headers: Headers, body: any): boolean {
+function validateSignature(headers: Headers, body: unknown): boolean {
   const bypass = (process.env.WEBHOOK_DISABLE_SIGNATURE === 'true') || (process.env.NODE_ENV !== 'production')
   if (bypass) {
     return true
