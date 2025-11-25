@@ -1,13 +1,13 @@
 export function generateUniqueCode(): string {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const codeLength = 8;
+  const digits = '0123456789';
+  const codeLength = 6;
   let code = '';
-  
+
   for (let i = 0; i < codeLength; i++) {
-    const randomIndex = Math.floor(Math.random() * characters.length);
-    code += characters[randomIndex];
+    const randomIndex = Math.floor(Math.random() * digits.length);
+    code += digits[randomIndex];
   }
-  
+
   return code;
 }
 
@@ -29,14 +29,22 @@ export async function generateUniqueCodeWithVerification(
       .select(codeColumn)
       .eq(codeColumn, code)
       .single();
-    
+
     if (error && error.code === 'PGRST116') {
-      return code;
+      // continue to check affiliates table
     }
     
-    if (!data) {
-      return code;
-    }
+    const usedInVendas = !!data;
+
+    const { data: affData, error: affError } = await supabase
+      .from('affiliates')
+      .select('code')
+      .eq('code', code)
+      .single();
+
+    const usedInAffiliates = affError && affError.code === 'PGRST116' ? false : !!affData;
+
+    if (!usedInVendas && !usedInAffiliates) return code;
     
     attempts++;
   }
