@@ -79,7 +79,8 @@ export async function POST(request: NextRequest) {
           .from('affiliates')
           .insert({
             code: novoCodigo,
-            status: 'inactive'
+            status: 'inactive',
+            venda_id: venda.id
           });
         
         if (insertAffiliateError) {
