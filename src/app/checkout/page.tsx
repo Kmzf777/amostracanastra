@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { VerticalCutReveal, VerticalCutRevealRef } from "@/components/ui/vertical-cut-reveal";
+import { supabase } from "@/lib/supabaseClient";
 import { ArrowRight, ArrowLeft } from "lucide-react";
 import { Suspense } from "react";
 
@@ -83,6 +83,15 @@ const questions: Question[] = [
     animationText: "É um prazer ter você aqui na Café Canastra!"
   },
   {
+    id: 'cpf',
+    type: 'cpf',
+    label: 'CPF',
+    placeholder: 'Digite seu CPF',
+    validation: (value) => isValidCPF(value),
+    errorMessage: 'CPF inválido',
+    animationText: "Seu CPF para o pedido?"
+  },
+  {
     id: 'full_name',
     type: 'text',
     label: 'Nome completo',
@@ -109,15 +118,6 @@ const questions: Question[] = [
     errorMessage: 'Telefone inválido',
     animationText: "Qual é o seu telefone?"
   },
-  {
-    id: 'cpf',
-    type: 'cpf',
-    label: 'CPF',
-    placeholder: 'Digite seu CPF',
-    validation: (value) => isValidCPF(value),
-    errorMessage: 'CPF inválido',
-    animationText: "Seu CPF para o pedido?"
-  },
 
   {
     id: 'postal_code',
@@ -129,58 +129,13 @@ const questions: Question[] = [
     animationText: "Qual é o CEP de entrega?"
   },
   {
-    id: 'address_line1',
+    id: 'address_group',
     type: 'text',
-    label: 'Endereço',
-    placeholder: 'Rua, Avenida, etc',
-    validation: (value) => value.trim().length >= 5,
-    errorMessage: 'Endereço obrigatório',
-    animationText: "O endereço de entrega?"
-  },
-  {
-    id: 'number',
-    type: 'text',
-    label: 'Número',
-    placeholder: 'Número da casa/apartamento',
-    validation: (value) => value.trim().length >= 1,
-    errorMessage: 'Número obrigatório',
-    animationText: "O número do endereço?"
-  },
-  {
-    id: 'district',
-    type: 'text',
-    label: 'Bairro',
-    placeholder: 'Digite o bairro',
-    validation: (value) => value.trim().length >= 3,
-    errorMessage: 'Bairro obrigatório',
-    animationText: "Qual é o bairro?"
-  },
-  {
-    id: 'city',
-    type: 'text',
-    label: 'Cidade',
-    placeholder: 'Digite a cidade',
-    validation: (value) => value.trim().length >= 3,
-    errorMessage: 'Cidade obrigatória',
-    animationText: "A cidade de entrega?"
-  },
-  {
-    id: 'state',
-    type: 'text',
-    label: 'Estado',
-    placeholder: 'Digite o estado',
-    validation: (value) => value.trim().length >= 2,
-    errorMessage: 'Estado obrigatório',
-    animationText: "O estado?"
-  },
-  {
-    id: 'address_line2',
-    type: 'text',
-    label: 'Complemento',
-    placeholder: 'Complemento (opcional)',
+    label: 'Endereço de Entrega',
+    placeholder: '',
     validation: () => true,
     errorMessage: '',
-    animationText: "Algum complemento?"
+    animationText: "Confira e edite os dados de entrega"
   }
 ];
 
@@ -195,7 +150,6 @@ function CheckoutPageContent() {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   
-  const revealRef = useRef<VerticalCutRevealRef>(null);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -212,6 +166,9 @@ function CheckoutPageContent() {
   });
 
   const currentQuestion = questions[currentQuestionIndex];
+
+  const totalSteps = questions.length - 1;
+  const progressPercent = Math.round((currentQuestionIndex / totalSteps) * 100);
 
   const formatInputValue = (value: string, type: string) => {
     switch (type) {
@@ -258,6 +215,23 @@ function CheckoutPageContent() {
     }
   };
 
+  const checkCpfUniqueness = async (cpfDigits: string) => {
+    try {
+      if (!supabase) return;
+      const formatted = formatCPF(cpfDigits);
+      const { data, error } = await supabase
+        .from('vendas_amostra')
+        .select('id')
+        .in('cpf', [cpfDigits, formatted])
+        .eq('payment_link_status', true)
+        .limit(1);
+      if (error) return;
+      if (data && data.length > 0) {
+        setError('A promoção é permitida 1 compra por CPF');
+      }
+    } catch {}
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     const formattedValue = formatInputValue(value, currentQuestion.id === 'cpf' ? 'cpf' : currentQuestion.id === 'phone' ? 'tel' : currentQuestion.id === 'postal_code' ? 'cep' : currentQuestion.type);
@@ -268,6 +242,12 @@ function CheckoutPageContent() {
     // Buscar CEP automaticamente quando o CEP estiver completo
     if (currentQuestion.id === 'postal_code' && onlyDigits(value).length === 8) {
       handleCEPSearch(onlyDigits(value));
+    }
+    if (currentQuestion.id === 'cpf') {
+      const digits = onlyDigits(formattedValue);
+      if (digits.length === 11 && isValidCPF(digits)) {
+        checkCpfUniqueness(digits);
+      }
     }
   };
 
@@ -282,13 +262,41 @@ function CheckoutPageContent() {
       return;
     }
 
-    if (!currentQuestion.validation(inputValue)) {
-      setError(currentQuestion.errorMessage);
-      return;
+    if (currentQuestion.id === 'address_group') {
+      const a1 = formData.address_line1.trim().length >= 5;
+      const num = formData.number.trim().length >= 1;
+      const dist = formData.district.trim().length >= 3;
+      const city = formData.city.trim().length >= 3;
+      const st = formData.state.trim().length >= 2;
+      if (!(a1 && num && dist && city && st)) {
+        setError('Preencha os dados de entrega obrigatórios');
+        return;
+      }
+    } else {
+      if (!currentQuestion.validation(inputValue)) {
+        setError(currentQuestion.errorMessage);
+        return;
+      }
+    }
+    if (currentQuestion.id === 'cpf') {
+      const digits = onlyDigits(inputValue);
+      if (isValidCPF(digits) && supabase) {
+        const formatted = formatCPF(digits);
+        const { data } = await supabase
+          .from('vendas_amostra')
+          .select('id')
+          .in('cpf', [digits, formatted])
+          .eq('payment_link_status', true)
+          .limit(1);
+        if (data && data.length > 0) {
+          setError('A promoção é permitida 1 compra por CPF');
+          return;
+        }
+      }
     }
 
     // Update form data
-    if (currentQuestion.id !== 'welcome') {
+    if (currentQuestion.id !== 'welcome' && currentQuestion.id !== 'address_group') {
       setFormData(prev => ({
         ...prev,
         [currentQuestion.id]: inputValue
@@ -374,20 +382,32 @@ function CheckoutPageContent() {
     }
   };
 
-  useEffect(() => {
-    // Reset and restart animation when question changes
-    revealRef.current?.reset();
-    
-    const timer = setTimeout(() => {
-      revealRef.current?.startAnimation();
-    }, 600); // Slightly longer than fade transition (500ms)
-    
-    return () => clearTimeout(timer);
-  }, [currentQuestionIndex]);
+  const skipToAddressGroup = () => {
+    const idx = questions.findIndex(q => q.id === 'address_group');
+    if (idx !== -1) {
+      setIsAnimatingOut(true);
+      setTimeout(() => {
+        setCurrentQuestionIndex(idx);
+        setInputValue("");
+        setError("");
+        setIsAnimatingOut(false);
+      }, 500);
+    }
+  };
+  
 
   return (
     <main className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="w-full max-w-2xl mx-auto">
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-600">Progresso</span>
+            <span className="text-sm font-medium text-gray-900">{progressPercent}%</span>
+          </div>
+          <div className="w-full h-2 rounded-full bg-gray-200">
+            <div className="h-2 rounded-full bg-amber-600" style={{ width: `${progressPercent}%` }} />
+          </div>
+        </div>
         {/* Back Button */}
         {currentQuestionIndex > 0 && (
           <div className="absolute top-8 left-8">
@@ -403,26 +423,73 @@ function CheckoutPageContent() {
 
         <div className="min-h-[400px] flex flex-col justify-center">
           <div className={`transition-opacity duration-500 ${isAnimatingOut ? 'opacity-0' : 'opacity-100'}`}>
-            {/* Animated Text */}
             <div className="mb-12">
-              <VerticalCutReveal
-                ref={revealRef}
-                splitBy="characters"
-                staggerDuration={0.03}
-                staggerFrom="first"
-                transition={{
-                  type: "spring",
-                  stiffness: 190,
-                  damping: 22,
-                }}
-                containerClassName="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium text-gray-900 text-center"
-              >
+              <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium text-gray-900 text-center">
                 {currentQuestion.animationText}
-              </VerticalCutReveal>
+              </div>
             </div>
 
-            {/* Input Field and Button */}
-            {currentQuestion.id !== 'welcome' && (
+            {currentQuestion.id === 'address_group' ? (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input
+                    type="text"
+                    value={formData.address_line1}
+                    onChange={(e) => setFormData(prev => ({ ...prev, address_line1: e.target.value }))}
+                    placeholder="Rua, Avenida, etc"
+                    className="w-full text-lg px-6 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-0 transition-colors duration-200 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={formData.number}
+                    onChange={(e) => setFormData(prev => ({ ...prev, number: e.target.value }))}
+                    placeholder="Número"
+                    className="w-full text-lg px-6 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-0 transition-colors duration-200 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={formData.address_line2}
+                    onChange={(e) => setFormData(prev => ({ ...prev, address_line2: e.target.value }))}
+                    placeholder="Complemento (opcional)"
+                    className="w-full text-lg px-6 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-0 transition-colors duration-200 bg-white md:col-span-2"
+                  />
+                  <input
+                    type="text"
+                    value={formData.district}
+                    onChange={(e) => setFormData(prev => ({ ...prev, district: e.target.value }))}
+                    placeholder="Bairro"
+                    className="w-full text-lg px-6 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-0 transition-colors duration-200 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={formData.city}
+                    onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
+                    placeholder="Cidade"
+                    className="w-full text-lg px-6 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-0 transition-colors duration-200 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={formData.state}
+                    onChange={(e) => setFormData(prev => ({ ...prev, state: e.target.value }))}
+                    placeholder="Estado"
+                    className="w-full text-lg px-6 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-0 transition-colors duration-200 bg-white md:col-span-2"
+                  />
+                </div>
+                {error && (
+                  <p className="text-red-500 text-sm text-center">{error}</p>
+                )}
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleNext}
+                    disabled={loading}
+                    className="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
+                  >
+                    {currentQuestionIndex === questions.length - 1 ? "Ver Resumo do Pedido" : "Continuar"}
+                    <ArrowRight className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+            ) : currentQuestion.id !== 'welcome' ? (
               <div className="space-y-6">
                 <div className="relative">
                   <input
@@ -447,20 +514,38 @@ function CheckoutPageContent() {
                 {successMessage && (
                   <p className="text-green-600 text-sm text-center">{successMessage}</p>
                 )}
-                
-                {/* Button positioned below and to the right */}
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleNext}
-                    disabled={loading || (currentQuestion.id !== 'welcome' && !inputValue)}
-                    className="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
-                  >
-                    {loading ? "Processando..." : currentQuestionIndex === questions.length - 1 ? "Ver Resumo do Pedido" : "Continuar"}
-                    <ArrowRight className="w-6 h-6" />
-                  </button>
-                </div>
+                {currentQuestion.id === 'postal_code' ? (
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={skipToAddressGroup}
+                      disabled={loading}
+                      className="text-gray-700 hover:text-gray-900 font-medium underline"
+                    >
+                      Não sei meu CEP
+                    </button>
+                    <button
+                      onClick={handleNext}
+                      disabled={loading || !inputValue}
+                      className="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
+                    >
+                      {loading ? "Processando..." : "Continuar"}
+                      <ArrowRight className="w-6 h-6" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleNext}
+                      disabled={loading || (currentQuestion.id !== 'welcome' && !inputValue)}
+                      className="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
+                    >
+                      {loading ? "Processando..." : currentQuestionIndex === questions.length - 1 ? "Ver Resumo do Pedido" : "Continuar"}
+                      <ArrowRight className="w-6 h-6" />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            ) : null}
 
             {/* Welcome screen button */}
             {currentQuestion.id === 'welcome' && (

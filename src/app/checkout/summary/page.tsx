@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Package, User, MapPin, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
-import { supabase } from "@/lib/supabaseClient";
 
 interface OrderData {
   customer: {
@@ -28,7 +27,7 @@ interface OrderData {
 
 function CheckoutSummaryContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
+  
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,52 +51,7 @@ function CheckoutSummaryContent() {
     }
   }, [searchParams]);
 
-  // Monitorar status do pagamento
-  useEffect(() => {
-    if (!orderData?.code || !supabase) return;
-
-    const checkPaymentStatus = async () => {
-      try {
-        // Verificar se supabase está disponível
-        if (!supabase) {
-          console.error('Supabase não está disponível');
-          return;
-        }
-
-        // Buscar o registro na tabela vendas_amostra pelo código
-        const { data, error } = await supabase
-          .from('vendas_amostra')
-          .select('payment_link_status, payment_link_id')
-          .eq('codigo_usado', orderData.code)
-          .single();
-
-        if (error) {
-          console.error('Erro ao verificar status do pagamento:', error);
-          return;
-        }
-
-        if (data?.payment_link_status === true) {
-          // Pagamento confirmado - redirecionar para sucesso
-          router.push('/checkout/sucesso');
-        } else {
-          // Continuar verificando
-          setTimeout(checkPaymentStatus, 3000); // Verificar a cada 3 segundos
-        }
-      } catch (error) {
-        console.error('Erro ao verificar status:', error);
-        setTimeout(checkPaymentStatus, 3000); // Tentar novamente em 3 segundos
-      }
-    };
-
-    // Iniciar verificação
-    checkPaymentStatus();
-
-    // Limpar timeout quando o componente for desmontado
-    return () => {
-      const timeoutId = setTimeout(() => {}, 0);
-      clearTimeout(timeoutId);
-    };
-  }, [orderData?.code, router]);
+  
 
   const formatPhone = (phone: string) => {
     const digits = phone.replace(/\D/g, "");
@@ -251,18 +205,7 @@ function CheckoutSummaryContent() {
             </div>
           </div>
 
-          {/* Payment Status */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-2 mb-3">
-                <div className="w-5 h-5 border-4 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
-                <h3 className="text-lg font-semibold text-yellow-900">Aguardando Confirmação do Pagamento</h3>
-              </div>
-              <p className="text-yellow-800 text-sm">
-                Estamos verificando o status do seu pagamento. Você será redirecionado automaticamente quando for confirmado.
-              </p>
-            </div>
-          </div>
+          
 
           {/* Action Button */}
           <div className="flex justify-center">
