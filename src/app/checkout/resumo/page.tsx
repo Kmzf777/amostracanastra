@@ -128,6 +128,29 @@ function OrderSummaryContent() {
 
   const handlePayment = async () => {
     if (!customerData) return;
+
+    // Abrir janela imediatamente para evitar bloqueio de popup
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>Processando Pagamento...</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f9fafb; color: #111827; }
+              .loader { border: 4px solid #e5e7eb; border-top: 4px solid #d97706; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 16px; }
+              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+              p { font-size: 18px; font-weight: 500; }
+            </style>
+          </head>
+          <body>
+            <div class="loader"></div>
+            <p>Gerando seu link de pagamento...</p>
+          </body>
+        </html>
+      `);
+    }
     
     setLoading(true);
     setPaymentClicked(true);
@@ -157,6 +180,7 @@ function OrderSummaryContent() {
       console.log('Resposta HTTP recebida:', response.status, response.statusText);
 
       if (!response.ok) {
+        if (newWindow) newWindow.close();
         const errorText = await response.text();
         console.error('Erro na resposta HTTP:', errorText);
         throw new Error(`Erro ao processar pagamento: ${response.status} ${response.statusText}`);
@@ -233,13 +257,20 @@ function OrderSummaryContent() {
         try { localStorage.setItem('payment_link_url', paymentLink); } catch {}
         setShowConfirmButton(true);
         setPaymentClicked(false);
-        window.open(paymentLink, '_blank');
+        
+        if (newWindow) {
+          newWindow.location.href = paymentLink;
+        } else {
+          window.open(paymentLink, '_blank');
+        }
       } else {
+        if (newWindow) newWindow.close();
         console.error('Formato da resposta não reconhecido:', result);
         throw new Error(`Link de pagamento não recebido. Formato: ${JSON.stringify(result)}`);
       }
       
     } catch (error) {
+      if (newWindow) newWindow.close();
       console.error('Erro completo no webhook:', error);
       alert(`Erro ao processar pagamento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       setPaymentClicked(false);
