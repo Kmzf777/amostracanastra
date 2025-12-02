@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 function isValidCode(code: string) {
   // Accept both 6-digit codes and codes with trailing spaces
@@ -40,11 +41,5 @@ export default async function CodePage({ params, searchParams }: { params: Promi
     );
   }
 
-  return (
-    <main className="container">
-      <h1>Bem-vindo!</h1>
-      <p className="muted">Código validado. Continue para o checkout.</p>
-      <a href={`/checkout?code=${code}`} style={{ display: "inline-block", marginTop: 12 }}>Ir para o checkout</a>
-    </main>
-  );
+  redirect(`/promo?code=${code}`);
 }

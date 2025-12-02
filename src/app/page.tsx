@@ -36,7 +36,7 @@ function HomePageContent() {
 
       const json = await res.json()
       if (json?.valid) {
-        router.push(`/checkout?code=${codeToValidate}`)
+        router.push(`/promo?code=${codeToValidate}`)
         return
       }
 
