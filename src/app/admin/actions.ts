@@ -74,7 +74,6 @@ export async function getDashboardData() {
   const salesByMonth: Record<string, number> = {}
   processedSales.forEach(s => {
     const d = s.brazilDate
-    const key = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit', timeZone: 'UTC' })
     // Sortable key
     const sortKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
     
@@ -145,7 +144,7 @@ export async function updateSaleStatus(id: string, status: string) {
   return { success: true }
 }
 
-export async function login(prevState: any, formData: FormData) {
+export async function login(prevState: unknown, formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 

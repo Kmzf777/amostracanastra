@@ -24,7 +24,7 @@ export default function PinInput6Mobile({ onComplete }: { onComplete: (value: st
               >
                 <PinInput.Input
                   index={index}
-                  className="w-8 h-8 md:w-10 md:h-10 text-center text-sm md:text-lg font-bold border-2 border-gray-200 rounded-lg bg-white/90 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-all duration-300 !outline-none"
+                  className="w-8 h-8 md:w-10 md:h-10 text-center text-sm md:text-lg font-bold border-2 border-gray-200 rounded-lg bg-white/90 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black/50 focus:border-black transition-all duration-300"
                   placeholder="•"
                 />
               </motion.div>

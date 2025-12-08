@@ -173,7 +173,7 @@ export default function SaleDetailsPage() {
           <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Confirmar Impressão</h3>
             <p className="text-gray-600 mb-6">
-              Tem certeza que deseja confirmar a impressão? Isso mudará o status do pedido para "Aguardando Envio".
+              Tem certeza que deseja confirmar a impressão? Isso mudará o status do pedido para &quot;Aguardando Envio&quot;.
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -200,7 +200,7 @@ export default function SaleDetailsPage() {
           <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Confirmar Envio</h3>
             <p className="text-gray-600 mb-6">
-              Tem certeza que deseja confirmar o envio? Isso mudará o status do pedido para "Enviado".
+              Tem certeza que deseja confirmar o envio? Isso mudará o status do pedido para &quot;Enviado&quot;.
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -322,7 +322,7 @@ export default function SaleDetailsPage() {
         </div>
         <div className="p-6">
           <p className="text-gray-600 mb-4">
-            Após realizar o envio do produto, confirme abaixo para atualizar o status do pedido para "Enviado".
+            Após realizar o envio do produto, confirme abaixo para atualizar o status do pedido para &quot;Enviado&quot;.
           </p>
           <button
             onClick={() => setShowShipModal(true)}

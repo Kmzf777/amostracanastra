@@ -15,6 +15,7 @@ interface DashboardData {
     sevenDays: { date: string; sales: number }[];
     total: { date: string; sales: number }[];
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sales: any[];
 }
 

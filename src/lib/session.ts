@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 const secretKey = process.env.SESSION_SECRET || 'chave-secreta-padrao-mudar-em-producao'
 const key = new TextEncoder().encode(secretKey)
 
-export async function encrypt(payload: any) {
+export async function encrypt(payload: Record<string, unknown>) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -19,7 +19,7 @@ export async function decrypt(session: string | undefined = '') {
       algorithms: ['HS256'],
     })
     return payload
-  } catch (error) {
+  } catch {
     return null
   }
 }

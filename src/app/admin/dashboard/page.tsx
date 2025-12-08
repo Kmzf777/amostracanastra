@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
+import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { TrendingUp, Calendar, CreditCard, Loader2 } from "lucide-react";
 import { getDashboardData } from "../actions";
 
@@ -16,6 +16,7 @@ interface DashboardData {
     sevenDays: { date: string; sales: number }[];
     total: { date: string; sales: number }[];
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sales: any[];
 }
 
