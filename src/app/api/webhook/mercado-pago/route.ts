@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
           .from('vendas_amostra')
           .update({ 
             codigo_gerado: novoCodigo,
-            payment_link_status: true 
+            payment_link_status: true,
+            order_status: 'Aguardando Impressão'
           })
           .eq('payment_link_id', preferenceId);
         

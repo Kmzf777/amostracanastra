@@ -319,14 +319,27 @@ function OrderSummaryContent() {
       const result = await response.json();
       console.log('✅ Resposta da confirmação:', result);
 
-      const pago =
-        (result as Record<string, unknown>)?.['status_pagamento'] === true ||
-        (result as Record<string, unknown>)?.['status_pagamento'] === 'true';
+      let pago = false;
+      
+      // Verificar se é array (novo formato)
+      if (Array.isArray(result) && result.length > 0) {
+        const firstItem = result[0] as Record<string, unknown>;
+        pago = firstItem['status_pagamento'] === true || firstItem['status_pagamento'] === 'true';
+      } 
+      // Verificar se é objeto (formato antigo)
+      else if (typeof result === 'object' && result !== null) {
+        const obj = result as Record<string, unknown>;
+        pago = obj['status_pagamento'] === true || obj['status_pagamento'] === 'true';
+      }
 
       if (pago) {
         router.push('/checkout/sucesso');
       } else {
-        setPopupMessage((result as Record<string, unknown>)?.['message'] as string || 'Pagamento Não Confirmado');
+        const message = Array.isArray(result) && result.length > 0 
+          ? (result[0] as Record<string, unknown>)?.['message'] as string
+          : (result as Record<string, unknown>)?.['message'] as string;
+          
+        setPopupMessage(message || 'Pagamento Não Confirmado');
         setShowPaymentPopup(true);
       }
       

@@ -24,7 +24,7 @@ export default function PinInput6Mobile({ onComplete }: { onComplete: (value: st
               >
                 <PinInput.Input
                   index={index}
-                  className="w-8 h-8 md:w-10 md:h-10 text-center text-sm md:text-lg font-bold border-2 border-amber-200 rounded-lg bg-white/90 text-amber-900 placeholder-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-500 transition-all duration-300"
+                  className="w-8 h-8 md:w-10 md:h-10 text-center text-sm md:text-lg font-bold border-2 border-gray-200 rounded-lg bg-white/90 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-all duration-300 !outline-none"
                   placeholder="•"
                 />
               </motion.div>
@@ -37,7 +37,7 @@ export default function PinInput6Mobile({ onComplete }: { onComplete: (value: st
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8, duration: 0.5 }}
-          className="text-center text-amber-600/80 text-xs mt-2 font-medium"
+          className="text-center text-gray-600 text-xs mt-2 font-medium"
         >
           Digite os 6 dígitos do seu código
         </motion.p>

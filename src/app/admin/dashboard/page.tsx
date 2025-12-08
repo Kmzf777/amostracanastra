@@ -1,266 +1,251 @@
 "use client";
 
-import { useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
-import { LogOut, TrendingUp, DollarSign, Package, Users } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
+import { TrendingUp, Calendar, CreditCard, Loader2 } from "lucide-react";
+import { getDashboardData } from "../actions";
 
-interface SalesData {
-  period: string;
-  sales: number;
-  revenue: number;
+interface DashboardData {
+  stats: {
+    today: number;
+    sevenDays: number;
+    total: number;
+  };
+  charts: {
+    today: { hour: string; sales: number }[];
+    sevenDays: { date: string; sales: number }[];
+    total: { date: string; sales: number }[];
+  };
+  sales: any[];
 }
-
-interface ProductData {
-  name: string;
-  value: number;
-  color: string;
-  [key: string]: string | number; // Add index signature for ChartDataInput compatibility
-}
-
-const mockSalesData: SalesData[] = [
-  { period: "Hoje", sales: 12, revenue: 480 },
-  { period: "7 dias", sales: 89, revenue: 3560 },
-  { period: "15 dias", sales: 156, revenue: 6240 },
-  { period: "30 dias", sales: 298, revenue: 11920 }
-];
-
-const mockDailyData = [
-  { day: "Seg", sales: 15 },
-  { day: "Ter", sales: 22 },
-  { day: "Qua", sales: 18 },
-  { day: "Qui", sales: 25 },
-  { day: "Sex", sales: 32 },
-  { day: "Sáb", sales: 28 },
-  { day: "Dom", sales: 20 }
-];
-
-const mockProductData: ProductData[] = [
-  { name: "Amostra 100g", value: 45, color: "#f59e0b" },
-  { name: "Amostra 250g", value: 35, color: "#10b981" },
-  { name: "Amostra 500g", value: 20, color: "#3b82f6" }
-];
 
 export default function AdminDashboardPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState("30 dias");
-  const [totalSales] = useState(1247);
-  const [totalRevenue] = useState(49880);
-  const router = useRouter();
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  const handleLogout = () => {
-    router.push("/admin");
-  };
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const result = await getDashboardData();
+        if ('error' in result && result.error) {
+          setError(result.error as string);
+        } else {
+          setData(result as DashboardData);
+        }
+      } catch (err) {
+        setError("Falha ao carregar dados");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // const currentData = mockSalesData.find(data => data.period === selectedPeriod) || mockSalesData[3];
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-red-500">Erro: {error}</div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const totalPages = Math.ceil(data.sales.length / itemsPerPage);
+  const currentSales = data.sales.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">Café Canastra</h1>
-              <span className="ml-3 text-sm text-gray-500">Dashboard</span>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              Sair
-            </button>
-          </div>
-        </div>
-      </header>
+    <div className="space-y-8">
+      {/* Page Header */}
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">Visão Geral</h2>
+        <p className="mt-1 text-sm text-gray-500">Acompanhe as métricas principais da sua loja.</p>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Vendas Hoje</p>
-                <p className="text-2xl font-bold text-gray-900">{mockSalesData[0].sales}</p>
-              </div>
-              <div className="bg-amber-100 p-3 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-amber-600" />
-              </div>
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Card 1: Today */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Vendas Hoje</p>
+              <p className="text-3xl font-bold text-gray-900">{data.stats.today}</p>
+            </div>
+            <div className="bg-blue-100 p-3 rounded-lg">
+              <TrendingUp className="w-6 h-6 text-blue-600" />
             </div>
           </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Últimos 7 dias</p>
-                <p className="text-2xl font-bold text-gray-900">{mockSalesData[1].sales}</p>
-              </div>
-              <div className="bg-green-100 p-3 rounded-lg">
-                <Package className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Últimos 15 dias</p>
-                <p className="text-2xl font-bold text-gray-900">{mockSalesData[2].sales}</p>
-              </div>
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <DollarSign className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Últimos 30 dias</p>
-                <p className="text-2xl font-bold text-gray-900">{mockSalesData[3].sales}</p>
-              </div>
-              <div className="bg-purple-100 p-3 rounded-lg">
-                <Users className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Sales Overview */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Vendas por Período</h3>
-            <div className="flex gap-2 mb-6">
-              {["Hoje", "7 dias", "15 dias", "30 dias"].map((period) => (
-                <button
-                  key={period}
-                  onClick={() => setSelectedPeriod(period)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    selectedPeriod === period
-                      ? "bg-amber-100 text-amber-800 border border-amber-200"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
-                >
-                  {period}
-                </button>
-              ))}
-            </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={mockSalesData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="period" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
+          <div className="h-48 w-full mt-auto">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.charts.today}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="hour" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: "white", 
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
-                  }} 
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  cursor={{ fill: '#f3f4f6' }}
                 />
-                <Bar dataKey="sales" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Vendas da Semana</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={mockDailyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="day" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
+        {/* Card 2: 7 Days */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Últimos 7 Dias</p>
+              <p className="text-3xl font-bold text-gray-900">{data.stats.sevenDays}</p>
+            </div>
+            <div className="bg-emerald-100 p-3 rounded-lg">
+              <Calendar className="w-6 h-6 text-emerald-600" />
+            </div>
+          </div>
+          <div className="h-48 w-full mt-auto">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.charts.sevenDays}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: "white", 
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
-                  }} 
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  cursor={{ fill: '#f3f4f6' }}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="sales" 
-                  stroke="#10b981" 
-                  strokeWidth={3}
-                  dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
-                />
-              </LineChart>
+                <Bar dataKey="sales" fill="#10b981" radius={[4, 4, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Total Sales Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Total de Vendas Realizadas</h2>
-            <div className="flex justify-center items-baseline gap-4 mt-6">
-              <div className="text-center">
-                <p className="text-4xl font-bold text-amber-600">{totalSales}</p>
-                <p className="text-sm text-gray-600 mt-1">Vendas Totais</p>
-              </div>
-              <div className="w-px h-12 bg-gray-200"></div>
-              <div className="text-center">
-                <p className="text-4xl font-bold text-green-600">R$ {totalRevenue.toLocaleString('pt-BR')}</p>
-                <p className="text-sm text-gray-600 mt-1">Receita Total</p>
-              </div>
+        {/* Card 3: Total */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total de Vendas</p>
+              <p className="text-3xl font-bold text-gray-900">{data.stats.total}</p>
+            </div>
+            <div className="bg-purple-100 p-3 rounded-lg">
+              <CreditCard className="w-6 h-6 text-purple-600" />
             </div>
           </div>
-        </div>
-
-        {/* Product Distribution */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Distribuição por Produto</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={mockProductData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={120}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {mockProductData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
+          <div className="h-48 w-full mt-auto">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data.charts.total}>
+                <defs>
+                  <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: "white", 
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
-                  }} 
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />
-              </PieChart>
+                <Area type="monotone" dataKey="sales" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorTotal)" />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumo por Produto</h3>
-            <div className="space-y-4">
-              {mockProductData.map((product) => (
-                <div key={product.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-4 h-4 rounded-full"
-                      style={{ backgroundColor: product.color }}
-                    ></div>
-                    <span className="font-medium text-gray-900">{product.name}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-semibold text-gray-900">{product.value}%</span>
-                    <p className="text-sm text-gray-600">das vendas</p>
-                  </div>
-                </div>
-              ))}
+      {/* Sales List Panel */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Últimas Vendas</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPF</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {currentSales.map((sale) => {
+                let statusColor = "bg-gray-100 text-gray-800";
+                if (sale.order_status === "Aguardando Impressão") statusColor = "bg-red-100 text-red-800";
+                else if (sale.order_status === "Aguardando Envio") statusColor = "bg-yellow-100 text-yellow-800";
+                else if (sale.order_status === "Enviado") statusColor = "bg-green-100 text-green-800";
+
+                return (
+                  <tr 
+                    key={sale.id} 
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => window.location.href = `/admin/dashboard/vendas/${sale.id}`}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {new Date(sale.created_at).toLocaleString('pt-BR')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {sale.customer_name || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                      {sale.cpf || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}`}>
+                        {sale.order_status || 'Pendente'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {data.sales.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    Nenhuma venda encontrada.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* Pagination Controls */}
+        {data.sales.length > 0 && (
+          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+            <div className="text-sm text-gray-500">
+              Mostrando <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> até <span className="font-medium">{Math.min(currentPage * itemsPerPage, data.sales.length)}</span> de <span className="font-medium">{data.sales.length}</span> resultados
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Próxima
+              </button>
             </div>
           </div>
-        </div>
-      </main>
+        )}
+      </div>
     </div>
   );
 }

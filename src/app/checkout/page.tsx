@@ -197,10 +197,14 @@ function CheckoutPageContent() {
           state: cepData.uf
         }));
         
-        // Se já estivermos na etapa de CEP, mostrar mensagem de sucesso
+        // Se já estivermos na etapa de CEP, mostrar mensagem de sucesso e avançar
         if (currentQuestion.id === 'postal_code') {
           setSuccessMessage("CEP encontrado! Endereço preenchido automaticamente.");
           setTimeout(() => setSuccessMessage(""), 3000);
+          
+          // Avançar automaticamente para o próximo passo
+          // Usamos o CEP formatado como valor, pois o input pode não estar atualizado ainda
+          handleNext(formatCEP(cep));
         }
       } else {
         setError("CEP não encontrado. Por favor, preencha o endereço manualmente.");
@@ -251,7 +255,9 @@ function CheckoutPageContent() {
     }
   };
 
-  const handleNext = async () => {
+  const handleNext = async (overrideValue?: string) => {
+    const valueToCheck = typeof overrideValue === 'string' ? overrideValue : inputValue;
+
     if (currentQuestion.id === 'welcome') {
       setIsAnimatingOut(true);
       setTimeout(() => {
@@ -273,13 +279,13 @@ function CheckoutPageContent() {
         return;
       }
     } else {
-      if (!currentQuestion.validation(inputValue)) {
+      if (!currentQuestion.validation(valueToCheck)) {
         setError(currentQuestion.errorMessage);
         return;
       }
     }
     if (currentQuestion.id === 'cpf') {
-      const digits = onlyDigits(inputValue);
+      const digits = onlyDigits(valueToCheck);
       if (isValidCPF(digits) && supabase) {
         const formatted = formatCPF(digits);
         const { data } = await supabase
@@ -299,7 +305,7 @@ function CheckoutPageContent() {
     if (currentQuestion.id !== 'welcome' && currentQuestion.id !== 'address_group') {
       setFormData(prev => ({
         ...prev,
-        [currentQuestion.id]: inputValue
+        [currentQuestion.id]: valueToCheck
       }));
     }
 
@@ -377,7 +383,7 @@ function CheckoutPageContent() {
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !loading) {
       handleNext();
     }
   };
@@ -480,7 +486,7 @@ function CheckoutPageContent() {
                 )}
                 <div className="flex justify-end">
                   <button
-                    onClick={handleNext}
+                    onClick={() => handleNext()}
                     disabled={loading}
                     className="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
                   >
@@ -524,7 +530,7 @@ function CheckoutPageContent() {
                       Não sei meu CEP
                     </button>
                     <button
-                      onClick={handleNext}
+                      onClick={() => handleNext()}
                       disabled={loading || !inputValue}
                       className="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
                     >
@@ -535,7 +541,7 @@ function CheckoutPageContent() {
                 ) : (
                   <div className="flex justify-end">
                     <button
-                      onClick={handleNext}
+                      onClick={() => handleNext()}
                       disabled={loading || (currentQuestion.id !== 'welcome' && !inputValue)}
                       className="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
                     >

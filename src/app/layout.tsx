@@ -4,20 +4,20 @@ import { Inter } from "next/font/google";
 const inter = Inter({ subsets: ["latin"], weight: ["400","500","600","700","800","900"], display: "swap" })
 
 export const metadata: Metadata = {
-  title: "Café Premium - Amostras Grátis | Café Canastra",
-  description: "Experimente nosso café especial de alta qualidade. 3 amostras grátis - você só paga o frete! Códigos exclusivos de afiliados.",
+  title: "Café Especial - Amostra Grátis...",
+  description: "Café Especial - Amostra Grátis...",
   keywords: "café especial, amostras grátis, café premium, café canastra, afiliados, amostra café",
   authors: [{ name: "Café Canastra" }],
   openGraph: {
-    title: "Café Premium - Amostras Grátis",
-    description: "3 amostras grátis de café especial - você só paga o frete!",
+    title: "Café Especial - Amostra Grátis...",
+    description: "Café Especial - Amostra Grátis...",
     type: "website",
     locale: "pt_BR",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Café Premium - Amostras Grátis",
-    description: "3 amostras grátis de café especial - você só paga o frete!",
+    title: "Café Especial - Amostra Grátis...",
+    description: "Café Especial - Amostra Grátis...",
   },
 };
 

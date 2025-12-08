@@ -62,21 +62,12 @@ export default function CheckoutSuccessPage() {
         </div>
 
         <div className="mt-6">
-          <p className="text-xs font-semibold tracking-wider text-amber-700 uppercase mb-2">Rastreie Aqui</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              href="https://rastreio.cafecanastra.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full sm:w-auto inline-flex items-center justify-center bg-amber-600 hover:bg-amber-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
-            >
-              Rastrear Pedido
-            </Link>
             <Link
               href="https://loja.cafecanastra.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full sm:w-auto inline-flex items-center justify-center border border-amber-600 text-amber-700 hover:bg-amber-50 font-semibold px-6 py-3 rounded-lg transition-colors"
+              className="w-full sm:w-auto inline-flex items-center justify-center bg-amber-600 hover:bg-amber-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
             >
               Conhecer Loja
             </Link>
