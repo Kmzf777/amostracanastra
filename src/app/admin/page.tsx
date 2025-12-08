@@ -1,9 +1,8 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useFormState, useFormStatus } from "react-dom";
 import { login } from "./actions";
 import { ArrowRight } from "lucide-react";
-import { useFormStatus } from "react-dom";
 
 const initialState = {
   error: "",

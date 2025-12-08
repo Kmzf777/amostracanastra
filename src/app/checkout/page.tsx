@@ -557,7 +557,7 @@ function CheckoutPageContent() {
             {currentQuestion.id === 'welcome' && (
               <div className="flex justify-center">
                 <button
-                  onClick={handleNext}
+                  onClick={() => handleNext()}
                   disabled={loading}
                   className="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold px-8 py-4 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
                 >
