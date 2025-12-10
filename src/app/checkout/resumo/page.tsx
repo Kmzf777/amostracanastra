@@ -171,7 +171,7 @@ function OrderSummaryContent() {
           },
           product: {
             name: 'Frete Amostra Grátis Café Especial',
-            price: 19.90,
+            price: 24.90,
             quantity: 1
           }
         }),
@@ -406,13 +406,13 @@ function OrderSummaryContent() {
               <p className="text-gray-600 text-sm">Quantidade: 1</p>
             </div>
             <div className="text-right">
-              <p className="text-lg font-bold text-gray-900">R$ 19,90</p>
+              <p className="text-lg font-bold text-gray-900">R$ 24,90</p>
             </div>
           </div>
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="flex justify-between items-center">
               <span className="text-lg font-semibold text-gray-900">Total</span>
-              <span className="text-xl font-bold text-amber-600">R$ 19,90</span>
+              <span className="text-xl font-bold text-amber-600">R$ 24,90</span>
             </div>
           </div>
         </div>

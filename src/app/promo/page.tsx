@@ -74,7 +74,7 @@ function PromoContent() {
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900">Você paga apenas o frete</p>
-                    <p className="text-sm text-gray-600">Apenas R$ 19,90 para envio seguro</p>
+                    <p className="text-sm text-gray-600">Apenas R$ 24,90 para envio seguro</p>
                   </div>
                 </div>
 
