@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, ShoppingBag, LogOut, Menu } from 'lucide-react'
+import { LayoutDashboard, ShoppingBag, LogOut, Menu, DollarSign } from 'lucide-react'
 import { useState } from 'react'
 import { logout } from '../actions'
 
@@ -28,6 +28,11 @@ export default function AdminDashboardLayout({
       name: 'Vendas',
       href: '/admin/dashboard/vendas',
       icon: ShoppingBag
+    },
+    {
+      name: 'Saques',
+      href: '/admin/dashboard/saques',
+      icon: DollarSign
     }
   ]
 
