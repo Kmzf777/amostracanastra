@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Copy, Check } from "lucide-react";
 import { getDashboardData } from "../../actions";
 
 interface DashboardData {
@@ -18,6 +18,27 @@ interface DashboardData {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sales: any[];
 }
+
+const CopyButton = ({ text }: { text: string }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="ml-2 p-1 text-gray-400 hover:text-gray-600 transition-colors inline-flex items-center"
+      title="Copiar"
+    >
+      {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+    </button>
+  );
+};
 
 export default function AdminSalesPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -150,6 +171,8 @@ export default function AdminSalesPage() {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPF</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefone</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
@@ -175,6 +198,18 @@ export default function AdminSalesPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                       {sale.cpf || '-'}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex items-center">
+                        <span className="truncate max-w-[150px]">{sale.email || '-'}</span>
+                        {sale.email && <CopyButton text={sale.email} />}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex items-center">
+                        {sale.number || sale.phone || '-'}
+                        {(sale.number || sale.phone) && <CopyButton text={sale.number || sale.phone} />}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}`}>
                         {sale.order_status || 'Pendente'}
@@ -185,7 +220,7 @@ export default function AdminSalesPage() {
               })}
               {filteredSales.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     Nenhuma venda encontrada com os filtros selecionados.
                   </td>
                 </tr>

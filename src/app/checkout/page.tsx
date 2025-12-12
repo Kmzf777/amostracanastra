@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { ArrowRight, ArrowLeft } from "lucide-react";
+import { ArrowRight, ArrowLeft, AlertCircle, X } from "lucide-react";
 import { Suspense } from "react";
 
 function onlyDigits(v: string) { return v.replace(/\D/g, ""); }
@@ -149,6 +149,7 @@ function CheckoutPageContent() {
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [showRegionPopup, setShowRegionPopup] = useState(false);
   
 
   const [formData, setFormData] = useState({
@@ -188,6 +189,14 @@ function CheckoutPageContent() {
     try {
       const cepData = await fetchCEPData(cep);
       if (cepData) {
+        // Bloquear região Norte
+        const northRegionStates = ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'];
+        if (northRegionStates.includes(cepData.uf)) {
+          setShowRegionPopup(true);
+          setLoading(false);
+          return;
+        }
+
         // Atualizar os campos do formulário com os dados do CEP
         setFormData(prev => ({
           ...prev,
@@ -276,6 +285,16 @@ function CheckoutPageContent() {
       const st = formData.state.trim().length >= 2;
       if (!(a1 && num && dist && city && st)) {
         setError('Preencha os dados de entrega obrigatórios');
+        return;
+      }
+
+      // Bloquear região Norte (Manual entry check)
+      const northRegionStates = ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'];
+      const stateUpper = formData.state.trim().toUpperCase();
+      const northRegionNames = ['ACRE', 'AMAPÁ', 'AMAPA', 'AMAZONAS', 'PARÁ', 'PARA', 'RONDÔNIA', 'RONDONIA', 'RORAIMA', 'TOCANTINS'];
+      
+      if (northRegionStates.includes(stateUpper) || northRegionNames.includes(stateUpper)) {
+        setShowRegionPopup(true);
         return;
       }
     } else {
@@ -569,6 +588,41 @@ function CheckoutPageContent() {
           </div>
         </div>
       </div>
+
+      {/* Region Block Popup */}
+      {showRegionPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
+            <button 
+              onClick={() => setShowRegionPopup(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle className="w-8 h-8 text-red-600" />
+              </div>
+              
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                Promoção Indisponível
+              </h3>
+              
+              <p className="text-gray-600 mb-6">
+                Infelizmente a promoção de amostra grátis não está disponível para a região Norte do Brasil neste momento.
+              </p>
+              
+              <button
+                onClick={() => setShowRegionPopup(false)}
+                className="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-xl transition-colors"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
