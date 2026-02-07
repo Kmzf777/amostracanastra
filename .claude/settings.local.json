@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(node test-checkout.mjs:*)",
+      "Bash(del:*)",
+      "Bash(npm audit:*)"
+    ]
+  }
+}

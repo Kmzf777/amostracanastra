@@ -1,117 +1,176 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateUniqueCodeWithVerification } from '@/utils/codeGenerator';
+import { mercadoPagoWebhookSchema } from '@/lib/schemas/webhook';
+import MercadoPagoClient from '@/lib/mercadopago';
+import crypto from 'crypto';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Verifica assinatura do webhook Mercado Pago
+function verifyWebhookSignature(
+  xSignature: string | null,
+  xRequestId: string | null,
+  dataId: string
+): boolean {
+  if (!xSignature || !xRequestId) return false;
+
+  const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
+  if (!secret) {
+    console.warn('⚠️ MERCADO_PAGO_WEBHOOK_SECRET não configurado');
+    return false;
+  }
+
+  try {
+    const parts = xSignature.split(',');
+    const ts = parts.find(p => p.startsWith('ts='))?.split('=')[1];
+    const hash = parts.find(p => p.startsWith('v1='))?.split('=')[1];
+
+    if (!ts || !hash) return false;
+
+    const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+    const hmac = crypto.createHmac('sha256', secret);
+    hmac.update(manifest);
+    const expectedHash = hmac.digest('hex');
+
+    return hash === expectedHash;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const headers = request.headers;
-    
-    console.log('📡 Webhook recebido:', JSON.stringify(body, null, 2));
-    console.log('📋 Headers:', Object.fromEntries(headers.entries()));
-    
-    const { payment_link_id, payment_link_status } = body as { 
-      payment_link_id?: string; 
-      payment_link_status?: boolean | string; 
-    };
-    
-    let preferenceId: string;
-    let isPaid: boolean;
-    
-    if (payment_link_id && payment_link_status !== undefined) {
-      console.log('🔍 Detectado webhook do n8n');
-      preferenceId = payment_link_id;
-      isPaid = payment_link_status === true || payment_link_status === 'true';
-      console.log('💰 Status do pagamento (n8n):', isPaid ? 'paid' : 'pending', 'Pago:', isPaid);
-      console.log('📝 Payment Link ID:', preferenceId);
-    } else {
-      console.log('❌ Formato de webhook não reconhecido');
-      return NextResponse.json({ error: 'Formato de webhook não reconhecido' }, { status: 400 });
+
+    console.log('📡 Webhook Mercado Pago recebido:', JSON.stringify(body, null, 2));
+
+    // Valida formato do webhook
+    const validation = mercadoPagoWebhookSchema.safeParse(body);
+    if (!validation.success) {
+      console.error('❌ Formato de webhook inválido:', validation.error.errors);
+      return NextResponse.json({ error: 'Formato inválido' }, { status: 400 });
     }
-    
-    if (isPaid && preferenceId) {
-      console.log('💳 Pagamento confirmado, gerando código único...');
-      
-      try {
-        const { data: venda, error: vendaError } = await supabase
-          .from('vendas_amostra')
-          .select('*')
-          .eq('payment_link_id', preferenceId)
-          .single();
-        
-        if (vendaError || !venda) {
-          console.error('❌ Venda não encontrada para o payment_link_id:', preferenceId);
-          return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 });
-        }
-        
-        if (venda.codigo_gerado) {
-          console.log('✅ Código já gerado anteriormente:', venda.codigo_gerado);
-          return NextResponse.json({ 
-            message: 'Código já existente', 
-            preferenceId, 
-            isPaid, 
-            codigo_gerado: venda.codigo_gerado 
-          }, { status: 200 });
-        }
-        
-        const novoCodigo = await generateUniqueCodeWithVerification(supabase, 'vendas_amostra', 'codigo_gerado');
-        console.log('🎉 Código único gerado:', novoCodigo);
-        
-        const { error: updateVendaError } = await supabase
-          .from('vendas_amostra')
-          .update({ 
-            codigo_gerado: novoCodigo,
-            payment_link_status: true,
-            order_status: 'Aguardando Impressão'
-          })
-          .eq('payment_link_id', preferenceId);
-        
-        if (updateVendaError) {
-          console.error('❌ Erro ao atualizar venda:', updateVendaError);
-          return NextResponse.json({ error: 'Erro ao atualizar venda' }, { status: 500 });
-        }
-        
-        const { error: insertAffiliateError } = await supabase
-          .from('affiliates')
-          .insert({
-            code: novoCodigo,
-            status: 'inactive',
-            venda_id: venda.id
-          });
-        
-        if (insertAffiliateError) {
-          console.error('❌ Erro ao criar registro em affiliates:', insertAffiliateError);
-          return NextResponse.json({ error: 'Erro ao criar registro de afiliado' }, { status: 500 });
-        }
-        
-        console.log('✅ Código salvo nas duas tabelas com sucesso!');
-        
-        return NextResponse.json({ 
-          message: 'Pagamento confirmado e código gerado com sucesso', 
-          preferenceId, 
-          isPaid, 
-          codigo_gerado: novoCodigo 
-        }, { status: 200 });
-        
-      } catch (error) {
-        console.error('❌ Erro ao processar pagamento confirmado:', error);
-        return NextResponse.json({ error: 'Erro ao processar pagamento confirmado' }, { status: 500 });
+
+    const { type, data } = validation.data;
+
+    // Só processa eventos de pagamento
+    if (type !== 'payment') {
+      console.log('ℹ️ Tipo de evento ignorado:', type);
+      return NextResponse.json({ message: 'Evento ignorado' }, { status: 200 });
+    }
+
+    // Verifica assinatura (segurança)
+    const xSignature = headers.get('x-signature');
+    const xRequestId = headers.get('x-request-id');
+
+    const isValid = verifyWebhookSignature(xSignature, xRequestId, data.id);
+    if (!isValid && process.env.NODE_ENV === 'production') {
+      console.error('❌ Assinatura inválida');
+      return NextResponse.json({ error: 'Assinatura inválida' }, { status: 401 });
+    }
+
+    // Busca detalhes do pagamento via API MP
+    const mpClient = MercadoPagoClient.getInstance();
+    const payment = mpClient.createPayment();
+
+    console.log('🔍 Buscando detalhes do pagamento:', data.id);
+    const paymentData = await payment.get({ id: data.id });
+
+    console.log('💳 Pagamento:', {
+      id: paymentData.id,
+      status: paymentData.status,
+      external_reference: paymentData.external_reference
+    });
+
+    const externalRef = paymentData.external_reference;
+    if (!externalRef) {
+      console.error('❌ external_reference não encontrado');
+      return NextResponse.json({ error: 'external_reference ausente' }, { status: 400 });
+    }
+
+    // Busca ordem no banco por external_reference
+    const { data: venda, error: vendaError } = await supabase
+      .from('vendas_amostra')
+      .select('*')
+      .eq('external_reference', externalRef)
+      .single();
+
+    if (vendaError || !venda) {
+      console.error('❌ Venda não encontrada:', externalRef);
+      return NextResponse.json({ error: 'Venda não encontrada' }, { status: 404 });
+    }
+
+    // Atualiza status do pagamento
+    const updateData: Record<string, any> = {
+      mp_payment_id: paymentData.id,
+      payment_status: paymentData.status,
+      payment_method: paymentData.payment_type_id
+    };
+
+    // Se pagamento aprovado e ainda não tem código, gera código
+    if (paymentData.status === 'approved' && !venda.codigo_gerado) {
+      console.log('💳 Pagamento aprovado! Gerando código único...');
+
+      const novoCodigo = await generateUniqueCodeWithVerification(supabase, 'vendas_amostra', 'codigo_gerado');
+      console.log('🎉 Código gerado:', novoCodigo);
+
+      updateData.codigo_gerado = novoCodigo;
+      updateData.payment_link_status = true;
+      updateData.order_status = 'Aguardando Impressão';
+
+      // Cria registro em affiliates
+      const { error: insertAffiliateError } = await supabase
+        .from('affiliates')
+        .insert({
+          code: novoCodigo,
+          status: 'inactive',
+          venda_id: venda.id
+        });
+
+      if (insertAffiliateError) {
+        console.error('❌ Erro ao criar afiliado:', insertAffiliateError);
+      } else {
+        console.log('✅ Afiliado criado com sucesso');
       }
     }
-    
-    return NextResponse.json({ message: 'Webhook recebido', preferenceId, isPaid }, { status: 200 });
-    
+
+    // Atualiza venda
+    const { error: updateError } = await supabase
+      .from('vendas_amostra')
+      .update(updateData)
+      .eq('external_reference', externalRef);
+
+    if (updateError) {
+      console.error('❌ Erro ao atualizar venda:', updateError);
+      return NextResponse.json({ error: 'Erro ao atualizar' }, { status: 500 });
+    }
+
+    console.log('✅ Venda atualizada com sucesso');
+
+    return NextResponse.json({
+      message: 'Webhook processado com sucesso',
+      status: paymentData.status,
+      codigo_gerado: updateData.codigo_gerado || null
+    }, { status: 200 });
+
   } catch (error) {
     console.error('❌ Erro no webhook:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Erro ao processar webhook',
+      message: error instanceof Error ? error.message : 'Erro desconhecido'
+    }, { status: 500 });
   }
 }
 
 export async function GET() {
-  return NextResponse.json({ message: 'Webhook disponível', endpoints: ['POST /api/webhook/mercado-pago'], timestamp: new Date().toISOString() }, { status: 200 });
+  return NextResponse.json({
+    message: 'Webhook Mercado Pago disponível',
+    version: 'direct-integration',
+    timestamp: new Date().toISOString()
+  }, { status: 200 });
 }

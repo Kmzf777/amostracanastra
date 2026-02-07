@@ -154,21 +154,29 @@ function OrderSummaryContent() {
     
     setLoading(true);
     setPaymentClicked(true);
-    
+
     try {
-      console.log('Enviando dados para webhook...');
-      
-      const response = await fetch('https://webhook.canastrainteligencia.com/webhook/linkpagamentoamostra', {
+      console.log('🚀 Criando pagamento via Mercado Pago...');
+
+      // Limpar formatação de CPF, telefone e CEP (apenas dígitos)
+      const cleanCustomerData = {
+        ...customerData,
+        cpf: String(customerData.cpf || '').replace(/\D/g, ''),
+        phone: String(customerData.phone || '').replace(/\D/g, ''),
+        postal_code: String(customerData.postal_code || '').replace(/\D/g, ''),
+        complemento: customerData.address_line2 || ''
+      };
+
+      console.log('📋 Dados do cliente (limpos):', cleanCustomerData);
+
+      const response = await fetch('/api/checkout/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           code,
-          customer: {
-            ...customerData,
-            complemento: customerData.address_line2 || '' // Enviar complemento como parâmetro separado
-          },
+          customer: cleanCustomerData,
           product: {
             name: 'Frete Amostra Grátis Café Especial',
             price: 24.90,
@@ -177,101 +185,63 @@ function OrderSummaryContent() {
         }),
       });
 
-      console.log('Resposta HTTP recebida:', response.status, response.statusText);
+      console.log('Resposta recebida:', response.status, response.statusText);
 
       if (!response.ok) {
         if (newWindow) newWindow.close();
-        const errorText = await response.text();
-        console.error('Erro na resposta HTTP:', errorText);
-        throw new Error(`Erro ao processar pagamento: ${response.status} ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+        console.error('❌ Erro na API:', errorData);
+
+        // Se tem detalhes de validação Zod, mostrar
+        if (errorData.details && Array.isArray(errorData.details)) {
+          const validationErrors = errorData.details
+            .map((err: any) => `${err.path.join('.')}: ${err.message}`)
+            .join('\n');
+          throw new Error(`Dados inválidos:\n${validationErrors}`);
+        }
+
+        throw new Error(errorData.error || errorData.message || `Erro ${response.status}`);
       }
 
-      console.log('Aguardando JSON da resposta...');
       const result = await response.json();
-      
-      // Debug: Log da resposta completa
-      console.log('Resposta do webhook:', result);
-      console.log('Tipo da resposta:', typeof result);
-      console.log('Conteúdo da resposta:', JSON.stringify(result, null, 2));
-      
-      // Extrair link de pagamento usando a função auxiliar
-      const paymentLink = extractPaymentLink(result);
-      
-      // Tentar extrair o payment_link_id da resposta
-      let extractedPaymentLinkId = null;
-      if (Array.isArray(result) && result.length > 0) {
-        const first = result[0] as Record<string, unknown>;
-        extractedPaymentLinkId = first['payment_link_id'] as string || first['preference_id'] as string;
-      } else if (typeof result === 'object' && result !== null) {
-        const obj = result as Record<string, unknown>;
-        extractedPaymentLinkId = obj['payment_link_id'] as string || obj['preference_id'] as string;
-        
-        if (!extractedPaymentLinkId && obj['data']) {
-          const data = obj['data'] as Record<string, unknown>;
-          extractedPaymentLinkId = data['payment_link_id'] as string || data['preference_id'] as string;
-        }
-      }
-      
-      if (extractedPaymentLinkId) {
-        console.log('Payment Link ID encontrado:', extractedPaymentLinkId);
-        setPaymentLinkId(extractedPaymentLinkId);
-        
-        // Salvar no localStorage para persistência
-        localStorage.setItem('payment_link_id', extractedPaymentLinkId);
-        
-        // Mostrar botão de confirmar pagamento
-        console.log('🔄 Ativando showConfirmButton (extractedPaymentLinkId)...');
-        setShowConfirmButton(true);
+      console.log('✅ Resposta da API:', result);
 
-        try {
-          if (supabase && customerData?.cpf) {
-            const cpfDigits = String(customerData.cpf).replace(/\D/g, '');
-            const { data } = await supabase
-              .from('vendas_amostra')
-              .select('id')
-              .eq('payment_link_id', extractedPaymentLinkId)
-              .limit(1);
-            if (data && data.length > 0) {
-              await supabase
-                .from('vendas_amostra')
-                .update({ cpf: cpfDigits })
-                .eq('payment_link_id', extractedPaymentLinkId);
-            } else {
-              await supabase
-                .from('vendas_amostra')
-                .insert({
-                  payment_link_id: extractedPaymentLinkId,
-                  payment_link_status: false,
-                  order_status: 'pending',
-                  cpf: cpfDigits,
-                });
-            }
-          }
-        } catch {}
-      }
-      
-      if (paymentLink) {
-        console.log('Link de pagamento encontrado:', paymentLink);
-        console.log('🔄 Ativando showConfirmButton (paymentLink)...');
-        setPaymentLinkUrl(paymentLink);
-        try { localStorage.setItem('payment_link_url', paymentLink); } catch {}
-        setShowConfirmButton(true);
-        setPaymentClicked(false);
-        
-        if (newWindow) {
-          newWindow.location.href = paymentLink;
-        } else {
-          window.open(paymentLink, '_blank');
-        }
-      } else {
+      // Nova resposta simplificada: { init_point, preference_id, external_reference }
+      const paymentLink = result.init_point;
+      const preferenceId = result.preference_id;
+      const externalReference = result.external_reference;
+
+      if (!paymentLink || !preferenceId) {
         if (newWindow) newWindow.close();
-        console.error('Formato da resposta não reconhecido:', result);
-        throw new Error(`Link de pagamento não recebido. Formato: ${JSON.stringify(result)}`);
+        throw new Error('Link de pagamento não recebido da API');
       }
-      
+
+      console.log('💳 Preference ID:', preferenceId);
+      console.log('🆔 External Reference:', externalReference);
+      console.log('🔗 Payment Link:', paymentLink);
+
+      // Salvar dados no state e localStorage
+      setPaymentLinkId(preferenceId);
+      setPaymentLinkUrl(paymentLink);
+
+      localStorage.setItem('payment_link_id', preferenceId);
+      localStorage.setItem('payment_link_url', paymentLink);
+      localStorage.setItem('external_reference', externalReference);
+
+      // Mostrar botão de confirmar pagamento
+      setShowConfirmButton(true);
+      setPaymentClicked(false);
+
+      // Redirecionar para Mercado Pago
+      if (newWindow) {
+        newWindow.location.href = paymentLink;
+      } else {
+        window.open(paymentLink, '_blank');
+      }
+
     } catch (error) {
       if (newWindow) newWindow.close();
-      console.error('Erro completo no webhook:', error);
+      console.error('❌ Erro ao processar pagamento:', error);
       alert(`Erro ao processar pagamento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       setPaymentClicked(false);
     } finally {

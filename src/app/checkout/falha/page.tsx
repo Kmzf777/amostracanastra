@@ -44,7 +44,7 @@ export default function CheckoutFailurePage() {
 
         <div className="space-y-4">
           <Link
-            href="/checkout/summary"
+            href="/checkout"
             className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold px-6 py-3 rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl transform hover:-translate-y-1"
           >
             <RefreshCw className="w-5 h-5" />
